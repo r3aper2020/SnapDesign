@@ -1,6 +1,6 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { HomeScreen } from './src/screens';
+import { AppNavigator } from './src/navigation/AppNavigator';
 import { ThemeProvider, useTheme } from './src/theme';
 
 const AppContent = () => {
@@ -8,7 +8,7 @@ const AppContent = () => {
   
   return (
     <>
-      <HomeScreen />
+      <AppNavigator />
       <StatusBar style={isDark ? "light" : "dark"} />
     </>
   );

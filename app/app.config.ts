@@ -24,7 +24,9 @@ const config: ExpoConfig = {
     },
     edgeToEdgeEnabled: true,
   },
-  web: { favicon: './assets/favicon.png' },
+  web: {
+    favicon: './assets/favicon.png',
+  },
   extra: {
     apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:4000',
   },
