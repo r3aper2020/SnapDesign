@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,9 @@ import {
   Linking,
   Dimensions,
   StyleSheet,
+  Animated,
 } from 'react-native';
+import { PinchGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -24,6 +26,7 @@ interface ResultScreenProps {
   route: {
     params: {
       generatedImage: string;
+      originalImage: string;
       products: Array<{
         name: string;
         type: string;
@@ -43,7 +46,24 @@ interface ResultScreenProps {
 
 export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route }) => {
   const { theme } = useTheme();
-  const { generatedImage, products } = route.params;
+  const { generatedImage, originalImage, products } = route.params;
+  
+  // Swipe comparison state
+  const [isShowingOriginal, setIsShowingOriginal] = useState(false);
+  
+  // Zoom state
+  const scale = useRef(new Animated.Value(1)).current;
+  const savedScale = useRef(1);
+  const [isZoomed, setIsZoomed] = useState(false);
+  
+  // Pan state
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const savedTranslateX = useRef(0);
+  const savedTranslateY = useRef(0);
+  
+  // Shopping list state
+  const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
 
   const shareImage = async () => {
     try {
@@ -56,14 +76,114 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     }
   };
 
-  const findProducts = (keywords: string[]) => {
-    const searchTerms = keywords.join(' ');
-    const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(searchTerms)}&tag=snapdesign-20`;
-    Linking.openURL(searchUrl);
-  };
-
   const openAmazonLink = (url: string) => {
     Linking.openURL(url);
+  };
+
+  // Simple tap to toggle between images
+  const toggleImage = () => {
+    setIsShowingOriginal(!isShowingOriginal);
+  };
+
+  // Zoom gesture handlers
+  const onPinchGestureEvent = Animated.event(
+    [{ nativeEvent: { scale: scale } }],
+    { useNativeDriver: true }
+  );
+
+  const onPinchHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.state === State.ACTIVE) {
+      // Gesture is active, allow zooming
+    } else if (event.nativeEvent.state === State.END) {
+      // Gesture ended, save the scale
+      savedScale.current = Math.max(1, Math.min(3, savedScale.current * event.nativeEvent.scale));
+      scale.setValue(savedScale.current);
+      
+      if (savedScale.current > 1) {
+        setIsZoomed(true);
+      } else {
+        setIsZoomed(false);
+      }
+    }
+  };
+
+  // Pan gesture handlers with proper offset management and real-time constraints
+  const onPanGestureEvent = (event: any) => {
+    const { translationX: panX, translationY: panY } = event.nativeEvent;
+    
+    // Calculate bounds based on current scale
+    const currentScale = savedScale.current;
+    const containerWidth = width - 64;
+    const containerHeight = 400;
+    const scaledWidth = containerWidth * currentScale;
+    const scaledHeight = containerHeight * currentScale;
+    const overflowX = (scaledWidth - containerWidth) / 2;
+    const overflowY = (scaledHeight - containerHeight) / 2;
+    
+    // Calculate new position with constraints
+    const newTranslateX = savedTranslateX.current + panX;
+    const newTranslateY = savedTranslateY.current + panY;
+    
+    const constrainedX = Math.max(-overflowX, Math.min(overflowX, newTranslateX));
+    const constrainedY = Math.max(-overflowY, Math.min(overflowY, newTranslateY));
+    
+    // Set the constrained values
+    translateX.setValue(constrainedX);
+    translateY.setValue(constrainedY);
+  };
+
+  const onPanHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.state === State.ACTIVE) {
+      // Gesture started - no need to set offsets since we're handling it directly
+    } else if (event.nativeEvent.state === State.END) {
+      // Gesture ended, save the current constrained position
+      const { translationX: panX, translationY: panY } = event.nativeEvent;
+      
+      // Calculate bounds based on current scale
+      const currentScale = savedScale.current;
+      const containerWidth = width - 64;
+      const containerHeight = 400;
+      const scaledWidth = containerWidth * currentScale;
+      const scaledHeight = containerHeight * currentScale;
+      const overflowX = (scaledWidth - containerWidth) / 2;
+      const overflowY = (scaledHeight - containerHeight) / 2;
+      
+      // Calculate new position
+      const newTranslateX = savedTranslateX.current + panX;
+      const newTranslateY = savedTranslateY.current + panY;
+      
+      // Apply constraints
+      const constrainedX = Math.max(-overflowX, Math.min(overflowX, newTranslateX));
+      const constrainedY = Math.max(-overflowY, Math.min(overflowY, newTranslateY));
+      
+      // Save the constrained position
+      savedTranslateX.current = constrainedX;
+      savedTranslateY.current = constrainedY;
+    }
+  };
+
+  // Reset zoom and pan
+  const resetZoom = () => {
+    savedScale.current = 1;
+    savedTranslateX.current = 0;
+    savedTranslateY.current = 0;
+    scale.setValue(1);
+    translateX.setValue(0);
+    translateY.setValue(0);
+    setIsZoomed(false);
+  };
+
+  // Shopping list functions
+  const toggleCheckbox = (index: number) => {
+    setCheckedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
   };
 
   return (
@@ -78,7 +198,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             Your Design
           </Text>
           <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-            Here's your transformed space with product recommendations
+            Here's your transformed space
           </Text>
         </View>
 
@@ -86,26 +206,84 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
         <View style={[styles.card, { backgroundColor: theme.colors.background.secondary }]}>
           <View style={styles.cardHeader}>
             <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
-              Transformed Space
+              {isShowingOriginal ? 'Original Space' : 'Transformed Space'}
             </Text>
             <Text style={[styles.cardSubtitle, { color: theme.colors.text.secondary }]}>
-              AI-enhanced design based on your theme
+              {isShowingOriginal ? 'Your original photo' : 'AI-enhanced design based on your theme'}
+            </Text>
+            <Text style={[styles.swipeHint, { color: theme.colors.text.secondary }]}>
+              Tap to compare • Pinch to zoom • Drag when zoomed
             </Text>
           </View>
           
           <View style={styles.imageContainer}>
-            {generatedImage ? (
-              <Image 
-                source={{ uri: `data:image/jpeg;base64,${generatedImage}` }} 
-                style={styles.generatedImage} 
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={[styles.noImageContainer, { backgroundColor: theme.colors.background.primary }]}>
-                <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
-                  No image available
+            <PanGestureHandler
+              onGestureEvent={onPanGestureEvent}
+              onHandlerStateChange={onPanHandlerStateChange}
+              enabled={isZoomed}
+            >
+              <Animated.View>
+                <PinchGestureHandler
+                  onGestureEvent={onPinchGestureEvent}
+                  onHandlerStateChange={onPinchHandlerStateChange}
+                >
+                  <Animated.View style={[styles.imageWrapper, { 
+                    transform: [
+                      { scale },
+                      { translateX },
+                      { translateY }
+                    ] 
+                  }]}>
+                    <TouchableOpacity onPress={toggleImage} activeOpacity={0.9}>
+                      {isShowingOriginal ? (
+                        // Show Original Image
+                        originalImage ? (
+                          <Image 
+                            source={{ uri: `data:image/jpeg;base64,${originalImage}` }} 
+                            style={styles.generatedImage} 
+                            resizeMode="cover"
+                            fadeDuration={0}
+                          />
+                        ) : (
+                          <View style={[styles.noImageContainer, { backgroundColor: theme.colors.background.primary }]}>
+                            <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
+                              No original image available
+                            </Text>
+                          </View>
+                        )
+                      ) : (
+                        // Show Generated Image
+                        generatedImage ? (
+                          <Image 
+                            source={{ uri: `data:image/jpeg;base64,${generatedImage}` }} 
+                            style={styles.generatedImage} 
+                            resizeMode="cover"
+                            fadeDuration={0}
+                          />
+                        ) : (
+                          <View style={[styles.noImageContainer, { backgroundColor: theme.colors.background.primary }]}>
+                            <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
+                              No image available
+                            </Text>
+                          </View>
+                        )
+                      )}
+                    </TouchableOpacity>
+                  </Animated.View>
+                </PinchGestureHandler>
+              </Animated.View>
+            </PanGestureHandler>
+            
+            {/* Reset Zoom Button */}
+            {isZoomed && (
+              <TouchableOpacity
+                style={[styles.resetZoomButton, { backgroundColor: theme.colors.primary.main }]}
+                onPress={resetZoom}
+              >
+                <Text style={[styles.resetZoomText, { color: theme.colors.primary.contrast }]}>
+                  Reset Zoom
                 </Text>
-              </View>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -136,107 +314,89 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
           <View style={styles.productsSection}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
-                Recommended Products
+                Shopping List
               </Text>
               <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
-                {products.length} items to complete your design
+                {checkedItems.size} of {products.length} items checked
               </Text>
             </View>
 
-            {products.map((product, index) => (
-              <View key={index} style={[styles.productCard, { backgroundColor: theme.colors.background.secondary }]}>
-                {/* Product Header */}
-                <View style={styles.productHeader}>
-                  <View style={styles.productTitleRow}>
-                    <Text style={[styles.productName, { color: theme.colors.text.primary }]}>
-                      {product.name}
-                    </Text>
-                    <View style={[styles.productBadge, { backgroundColor: theme.colors.primary.main }]}>
-                      <Text style={[styles.productBadgeText, { color: theme.colors.primary.contrast }]}>
-                        {product.qty}x
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.productType, { color: theme.colors.text.secondary }]}>
-                    {product.type}
-                  </Text>
-                </View>
-
-                {/* Product Details */}
-                <View style={styles.productDetails}>
-                  <View style={styles.productInfoRow}>
-                    {product.color && (
-                      <View style={styles.productInfoItem}>
-                        <Text style={[styles.productInfoLabel, { color: theme.colors.text.secondary }]}>
-                          Color:
+            {products.map((product, index) => {
+              const isChecked = checkedItems.has(index);
+              return (
+                <View key={index} style={[styles.shoppingListItem, { 
+                  backgroundColor: theme.colors.background.secondary,
+                  opacity: isChecked ? 0.6 : 1
+                }]}>
+                  {/* Checkbox and Main Content */}
+                  <View style={styles.listItemContent}>
+                    <TouchableOpacity 
+                      style={[styles.checkbox, { 
+                        borderColor: theme.colors.primary.main,
+                        backgroundColor: isChecked ? theme.colors.primary.main : 'transparent'
+                      }]}
+                      onPress={() => toggleCheckbox(index)}
+                    >
+                      {isChecked && (
+                        <Text style={[styles.checkmark, { color: theme.colors.primary.contrast }]}>
+                          ✓
                         </Text>
-                        <Text style={[styles.productInfoValue, { color: theme.colors.text.primary }]}>
-                          {product.color}
+                      )}
+                    </TouchableOpacity>
+                    
+                    <View style={styles.itemDetails}>
+                      <View style={styles.itemHeader}>
+                        <Text style={[styles.itemName, { 
+                          color: theme.colors.text.primary,
+                          textDecorationLine: isChecked ? 'line-through' : 'none'
+                        }]}>
+                          {product.name}
                         </Text>
+                        <View style={[styles.quantityBadge, { backgroundColor: theme.colors.primary.main }]}>
+                          <Text style={[styles.quantityText, { color: theme.colors.primary.contrast }]}>
+                            {product.qty}x
+                          </Text>
+                        </View>
                       </View>
-                    )}
-                    {product.estPriceUSD && (
-                      <View style={styles.productInfoItem}>
-                        <Text style={[styles.productInfoLabel, { color: theme.colors.text.secondary }]}>
-                          Price:
-                        </Text>
-                        <Text style={[styles.productInfoValue, { color: theme.colors.primary.main, fontWeight: '600' }]}>
+                      
+                      <Text style={[styles.itemType, { color: theme.colors.text.secondary }]}>
+                        {product.type}
+                      </Text>
+                      
+                      {product.estPriceUSD && (
+                        <Text style={[styles.itemPrice, { color: theme.colors.primary.main }]}>
                           ${product.estPriceUSD}
                         </Text>
-                      </View>
-                    )}
+                      )}
+                      
+                      {product.placement?.note && (
+                        <Text style={[styles.placementNote, { color: theme.colors.text.secondary }]}>
+                          📍 {product.placement.note}
+                        </Text>
+                      )}
+                    </View>
                   </View>
-
-                  {product.keywords && product.keywords.length > 0 && (
-                    <View style={styles.keywordsContainer}>
-                      <Text style={[styles.keywordsLabel, { color: theme.colors.text.secondary }]}>
-                        Keywords:
-                      </Text>
-                      <View style={styles.keywordsList}>
-                        {product.keywords.map((keyword, idx) => (
-                          <View key={idx} style={[styles.keywordTag, { backgroundColor: theme.colors.background.primary }]}>
-                            <Text style={[styles.keywordText, { color: theme.colors.text.secondary }]}>
-                              {keyword}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {product.placement?.note && (
-                    <View style={styles.placementContainer}>
-                      <Text style={[styles.placementText, { color: theme.colors.text.secondary }]}>
-                        {product.placement.note}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Product Actions */}
-                <View style={styles.productActions}>
-                  <TouchableOpacity
-                    style={[styles.searchButton, { backgroundColor: theme.colors.background.primary }]}
-                    onPress={() => findProducts(product.keywords || [product.name])}
-                  >
-                    <Text style={[styles.searchButtonText, { color: theme.colors.primary.main }]}>
-                      Search Similar
-                    </Text>
-                  </TouchableOpacity>
-
+                  
+                  {/* Amazon Button */}
                   {product.amazonLink && (
                     <TouchableOpacity
-                      style={[styles.amazonButton, { backgroundColor: theme.colors.primary.main }]}
+                      style={[styles.amazonButton, { 
+                        backgroundColor: isChecked ? theme.colors.background.primary : theme.colors.primary.main,
+                        borderColor: theme.colors.primary.main,
+                        borderWidth: 1
+                      }]}
                       onPress={() => openAmazonLink(product.amazonLink!)}
                     >
-                      <Text style={[styles.amazonButtonText, { color: theme.colors.primary.contrast }]}>
-                        View on Amazon
+                      <Text style={[styles.amazonButtonText, { 
+                        color: isChecked ? theme.colors.primary.main : theme.colors.primary.contrast 
+                      }]}>
+                        {isChecked ? 'Purchased' : 'Buy Now'}
                       </Text>
                     </TouchableOpacity>
                   )}
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         ) : (
           <View style={[styles.card, { backgroundColor: theme.colors.background.secondary }]}>
@@ -260,32 +420,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: 16,
     paddingBottom: 40,
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: 32,
-    paddingTop: 20,
+    marginBottom: 20,
+    paddingTop: 30,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 24,
-    maxWidth: width - 80,
+    lineHeight: 20,
+    maxWidth: width - 60,
     opacity: 0.8,
   },
   card: {
     borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
+    padding: 20,
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -293,7 +453,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   cardHeader: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   cardTitle: {
     fontSize: 20,
@@ -308,15 +468,51 @@ const styles = StyleSheet.create({
   imageContainer: {
     alignItems: 'center',
     marginBottom: 24,
+    position: 'relative',
+    width: width - 64,
+    height: 400,
+    overflow: 'hidden',
+    borderRadius: 12,
+    backgroundColor: '#f0f0f0', // Temporary background to see container
+  },
+  imageWrapper: {
+    width: width - 64,
+    height: 400,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   generatedImage: {
-    width: width - 96,
-    height: ((width - 96) * 3) / 4,
+    width: width - 64,
+    height: 400,
     borderRadius: 12,
   },
+  resetZoomButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  resetZoomText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  swipeHint: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+    opacity: 0.6,
+    fontStyle: 'italic',
+  },
   noImageContainer: {
-    width: width - 96,
-    height: ((width - 96) * 3) / 4,
+    width: width - 64,
+    height: 400,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -360,119 +556,82 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     opacity: 0.7,
   },
-  productCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+  // Shopping List Styles
+  shoppingListItem: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  productHeader: {
-    marginBottom: 16,
+  listItemContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
-  productTitleRow: {
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    marginRight: 12,
+    marginTop: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkmark: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  itemDetails: {
+    flex: 1,
+  },
+  itemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  productName: {
-    fontSize: 18,
-    fontWeight: '700',
+  itemName: {
+    fontSize: 16,
+    fontWeight: '600',
     flex: 1,
-    marginRight: 12,
+    marginRight: 8,
   },
-  productBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+  quantityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 32,
+    alignItems: 'center',
   },
-  productBadgeText: {
-    fontSize: 14,
+  quantityText: {
+    fontSize: 12,
     fontWeight: '600',
   },
-  productType: {
+  itemType: {
     fontSize: 14,
     opacity: 0.7,
+    marginBottom: 4,
   },
-  productDetails: {
-    marginBottom: 20,
+  itemPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
   },
-  productInfoRow: {
-    flexDirection: 'row',
-    gap: 24,
-    marginBottom: 16,
-  },
-  productInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  productInfoLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  productInfoValue: {
-    fontSize: 14,
-  },
-  keywordsContainer: {
-    marginBottom: 16,
-  },
-  keywordsLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  keywordsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  keywordTag: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  keywordText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  placementContainer: {
-    alignItems: 'flex-start',
-  },
-  placementText: {
-    fontSize: 14,
+  placementNote: {
+    fontSize: 13,
     fontStyle: 'italic',
     opacity: 0.8,
   },
-  productActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  searchButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  searchButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
   amazonButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   amazonButtonText: {
     fontSize: 14,

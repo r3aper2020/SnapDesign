@@ -11,14 +11,107 @@ import {
   TextInput,
   Dimensions,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../theme/ThemeProvider';
 import { endpoints } from '../config/api';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { designStorage } from '../services/DesignStorage';
 
 const { width } = Dimensions.get('window');
+
+// Professional Icon Components
+const CameraIcon = ({ size = 24, color = '#666' }) => (
+  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+    <View style={{
+      width: size * 0.8,
+      height: size * 0.6,
+      borderWidth: 2,
+      borderColor: color,
+      borderRadius: size * 0.1,
+      backgroundColor: 'transparent',
+    }}>
+      <View style={{
+        position: 'absolute',
+        top: -size * 0.15,
+        right: -size * 0.1,
+        width: size * 0.3,
+        height: size * 0.2,
+        borderWidth: 2,
+        borderColor: color,
+        borderRadius: size * 0.05,
+        backgroundColor: 'transparent',
+      }} />
+      <View style={{
+        position: 'absolute',
+        top: size * 0.15,
+        left: size * 0.2,
+        width: size * 0.15,
+        height: size * 0.15,
+        borderRadius: size * 0.075,
+        backgroundColor: color,
+      }} />
+    </View>
+  </View>
+);
+
+const DiceIcon = ({ size = 24, color = '#666' }) => (
+  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+    <View style={{
+      width: size * 0.8,
+      height: size * 0.8,
+      borderWidth: 2,
+      borderColor: color,
+      borderRadius: size * 0.1,
+      backgroundColor: 'transparent',
+      justifyContent: 'center',
+      alignItems: 'center',
+    }}>
+      <View style={{
+        width: size * 0.1,
+        height: size * 0.1,
+        borderRadius: size * 0.05,
+        backgroundColor: color,
+        marginBottom: size * 0.05,
+      }} />
+      <View style={{
+        width: size * 0.1,
+        height: size * 0.1,
+        borderRadius: size * 0.05,
+        backgroundColor: color,
+      }} />
+    </View>
+  </View>
+);
+
+const SparkleIcon = ({ size = 24, color = '#666' }) => (
+  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+    <View style={{
+      width: size * 0.3,
+      height: size * 0.3,
+      backgroundColor: color,
+      borderRadius: size * 0.15,
+      position: 'absolute',
+    }} />
+    <View style={{
+      width: size * 0.6,
+      height: 2,
+      backgroundColor: color,
+      position: 'absolute',
+      transform: [{ rotate: '45deg' }],
+    }} />
+    <View style={{
+      width: size * 0.6,
+      height: 2,
+      backgroundColor: color,
+      position: 'absolute',
+      transform: [{ rotate: '-45deg' }],
+    }} />
+  </View>
+);
 
 type DesignScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Design'>;
 
@@ -29,9 +122,48 @@ interface DesignScreenProps {
 export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState('halloween');
+  const [description, setDescription] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Popular design ideas for inspiration
+  const popularIdeas = [
+    // Holiday & Seasonal
+    'Decorate this space for Christmas with lights and ornaments',
+    'Add Halloween decorations and spooky elements',
+    'Create a cozy Thanksgiving atmosphere with fall colors',
+    'Add Easter decorations and spring elements',
+    
+    // Simple Additions
+    'Add a plant in the corner with a nice pot',
+    'Place a reading chair by the window',
+    'Add some artwork on the walls',
+    'Put a small table and lamp in the corner',
+    
+    // Room Transformations
+    'Transform into a cozy home office with plants and good lighting',
+    'Create a Japanese zen garden with koi pond and bamboo',
+    'Design a modern kitchen with island and pendant lights',
+    'Make this a children\'s playroom with storage and bright colors',
+    
+    // Outdoor & Patio
+    'Create a Mediterranean patio with terracotta pots and string lights',
+    'Add outdoor seating and string lights for evening ambiance',
+    'Design a vegetable garden with raised beds and trellises',
+    'Create a cozy outdoor dining area with plants',
+    
+    // Style & Aesthetic
+    'Design a Scandinavian living room with light wood and plants',
+    'Make this a bohemian bedroom with macrame and plants',
+    'Create an industrial loft with exposed brick and metal accents',
+    'Design a minimalist space with clean lines and neutral colors',
+    
+    // Functional Spaces
+    'Transform into a home gym with mirrors and equipment',
+    'Create a craft room with storage and work surfaces',
+    'Design a wine cellar with racks and tasting area',
+    'Make this a home library with bookshelves and reading nook'
+  ];
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -43,14 +175,45 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsEditing: false,
       quality: 0.8,
       base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setSelectedImage(result.assets[0].base64 || null);
+      const asset = result.assets[0];
+      console.log('📸 Selected image:', {
+        uri: asset.uri,
+        width: asset.width,
+        height: asset.height,
+        fileSize: asset.fileSize,
+        mimeType: asset.mimeType
+      });
+      
+      // Try to get base64 data, fallback to URI if base64 is not available
+      if (asset.base64) {
+        setSelectedImage(asset.base64);
+        console.log('✅ Using base64 data, length:', asset.base64.length);
+      } else if (asset.uri) {
+        // Convert URI to base64 if needed
+        try {
+          const response = await fetch(asset.uri);
+          const blob = await response.blob();
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = reader.result as string;
+            const cleanBase64 = base64.split(',')[1]; // Remove data URL prefix
+            setSelectedImage(cleanBase64);
+            console.log('✅ Converted URI to base64, length:', cleanBase64.length);
+          };
+          reader.readAsDataURL(blob);
+        } catch (error) {
+          console.error('❌ Error converting URI to base64:', error);
+          Alert.alert('Error', 'Failed to process the selected image');
+        }
+      } else {
+        Alert.alert('Error', 'No image data available');
+      }
     }
   };
 
@@ -63,20 +226,51 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsEditing: false,
       quality: 0.8,
       base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setSelectedImage(result.assets[0].base64 || null);
+      const asset = result.assets[0];
+      console.log('📷 Camera photo:', {
+        uri: asset.uri,
+        width: asset.width,
+        height: asset.height,
+        fileSize: asset.fileSize,
+        mimeType: asset.mimeType
+      });
+      
+      // Try to get base64 data, fallback to URI if base64 is not available
+      if (asset.base64) {
+        setSelectedImage(asset.base64);
+        console.log('✅ Using camera base64 data, length:', asset.base64.length);
+      } else if (asset.uri) {
+        // Convert URI to base64 if needed
+        try {
+          const response = await fetch(asset.uri);
+          const blob = await response.blob();
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = reader.result as string;
+            const cleanBase64 = base64.split(',')[1]; // Remove data URL prefix
+            setSelectedImage(cleanBase64);
+            console.log('✅ Converted camera URI to base64, length:', cleanBase64.length);
+          };
+          reader.readAsDataURL(blob);
+        } catch (error) {
+          console.error('❌ Error converting camera URI to base64:', error);
+          Alert.alert('Error', 'Failed to process the captured photo');
+        }
+      } else {
+        Alert.alert('Error', 'No photo data available');
+      }
     }
   };
 
   const handleGenerateDesign = async () => {
-    if (!selectedImage || !prompt.trim()) {
-      Alert.alert('Error', 'Please select an image and enter a prompt');
+    if (!selectedImage || !description.trim()) {
+      Alert.alert('Error', 'Please select an image and describe what you want to create');
       return;
     }
 
@@ -100,9 +294,15 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
       const requestBody = {
         imageBase64: selectedImage,
-        theme: prompt.trim(),
+        description: description.trim(),
         mimeType: 'image/jpeg'
       };
+      
+      console.log('🚀 Sending design request:', {
+        description: requestBody.description,
+        imageSize: requestBody.imageBase64.length,
+        mimeType: requestBody.mimeType
+      });
       
       const response = await fetch(endpoints.decorate(), {
         method: 'POST',
@@ -125,9 +325,31 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
       const data = await response.json();
 
+      console.log('🎨 Design response received:', {
+        hasEditedImage: !!data.editedImageBase64,
+        editedImageSize: data.editedImageBase64?.length || 0,
+        productsCount: data.products?.items?.length || data.products?.length || 0,
+        products: data.products?.items || data.products
+      });
+
       if (data.editedImageBase64 && data.products) {
+        // Save the design locally
+        try {
+          await designStorage.saveDesign({
+            description: description.trim(),
+            originalImage: selectedImage,
+            generatedImage: data.editedImageBase64,
+            products: data.products.items || data.products
+          });
+          console.log('💾 Design saved successfully');
+        } catch (saveError) {
+          console.error('❌ Error saving design:', saveError);
+          // Continue to result screen even if saving fails
+        }
+
         navigation.navigate('Result', {
           generatedImage: data.editedImageBase64,
+          originalImage: selectedImage,
           products: data.products.items || data.products
         });
       } else {
@@ -143,131 +365,117 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        {/* Header Section */}
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+        >
+        {/* Modern Header */}
         <View style={styles.headerSection}>
           <Text style={[styles.title, { color: theme.colors.text.primary }]}>
             Design Studio
           </Text>
           <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-            Transform any space with AI-powered design and get product recommendations
+            Transform any space with AI-powered design
           </Text>
         </View>
 
-        {/* Image Selection Card */}
-        <View style={[styles.card, { backgroundColor: theme.colors.background.secondary }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
-              Upload Your Space
-            </Text>
-            <Text style={[styles.cardSubtitle, { color: theme.colors.text.secondary }]}>
-              Take a photo or choose from your gallery
-            </Text>
-          </View>
-          
-          <View style={styles.imageContainer}>
-            {selectedImage ? (
-              <View style={styles.selectedImageWrapper}>
-                <Image 
-                  source={{ uri: `data:image/jpeg;base64,${selectedImage}` }} 
-                  style={styles.selectedImage} 
-                />
-                <View style={styles.imageOverlay}>
-                  <Text style={[styles.imageOverlayText, { color: theme.colors.primary.contrast }]}>
-                    Image Selected
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <View style={[styles.placeholderImage, { borderColor: theme.colors.border.light }]}>
-                <Text style={[styles.placeholderText, { color: theme.colors.text.secondary }]}>
-                  No image selected
-                </Text>
-                <Text style={[styles.placeholderSubtext, { color: theme.colors.text.secondary }]}>
-                  Choose a photo to get started
-                </Text>
-              </View>
-            )}
-          </View>
-          
-          <View style={styles.imageButtons}>
-            <TouchableOpacity 
-              style={[styles.imageButton, { backgroundColor: theme.colors.primary.main }]}
-              onPress={pickImage}
-            >
-              <Text style={[styles.imageButtonText, { color: theme.colors.primary.contrast }]}>
-                Choose Photo
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.imageButton, { backgroundColor: theme.colors.secondary.main }]}
-              onPress={takePhoto}
-            >
-              <Text style={[styles.imageButtonText, { color: theme.colors.secondary.contrast }]}>
-                Take Photo
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Theme Input Card */}
-        <View style={[styles.card, { backgroundColor: theme.colors.background.secondary }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
-              Design Theme
-            </Text>
-            <Text style={[styles.cardSubtitle, { color: theme.colors.text.secondary }]}>
-              Describe the style or theme you want
-            </Text>
-          </View>
-          
-          <TextInput
-            style={[styles.themeInput, { 
-              color: theme.colors.text.primary,
-              borderColor: theme.colors.border.light,
-              backgroundColor: theme.colors.background.primary,
-            }]}
-            value={prompt}
-            onChangeText={setPrompt}
-            placeholder="e.g., 'halloween party', 'christmas cozy', 'modern minimalist', 'tropical paradise'"
-            placeholderTextColor={theme.colors.text.secondary}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
-          
-          <View style={styles.themeExamples}>
-            <Text style={[styles.themeExamplesTitle, { color: theme.colors.text.secondary }]}>
-              Popular themes:
-            </Text>
-            <View style={styles.themeTags}>
-              {['halloween', 'christmas', 'birthday', 'modern', 'vintage', 'tropical'].map((tag) => (
-                <TouchableOpacity
-                  key={tag}
-                  style={[
-                    styles.themeTag,
-                    { 
-                      backgroundColor: prompt === tag ? theme.colors.primary.main : theme.colors.background.primary,
-                      borderColor: theme.colors.border.light
-                    }
-                  ]}
-                  onPress={() => setPrompt(tag)}
+        {/* Hero Image Section */}
+        <View style={styles.heroSection}>
+          {selectedImage ? (
+            <View style={styles.imageContainer}>
+              <Image 
+                source={{ uri: `data:image/jpeg;base64,${selectedImage}` }} 
+                style={styles.heroImage} 
+                resizeMode="cover"
+                fadeDuration={0}
+              />
+              <View style={styles.imageOverlay}>
+                <TouchableOpacity 
+                  style={styles.changeImageButton}
+                  onPress={pickImage}
                 >
-                  <Text style={[
-                    styles.themeTagText,
-                    { 
-                      color: prompt === tag ? theme.colors.primary.contrast : theme.colors.text.secondary 
-                    }
-                  ]}>
-                    {tag}
+                  <Text style={styles.changeImageText}>Change Photo</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.uploadArea, { borderColor: theme.colors.border.light }]}>
+              <View style={styles.uploadIcon}>
+                <CameraIcon size={48} color={theme.colors.text.secondary} />
+              </View>
+              <Text style={[styles.uploadTitle, { color: theme.colors.text.primary }]}>
+                Upload Your Space
+              </Text>
+              <Text style={[styles.uploadSubtitle, { color: theme.colors.text.secondary }]}>
+                Take a photo or choose from your gallery
+              </Text>
+              <View style={styles.uploadButtons}>
+                <TouchableOpacity 
+                  style={[styles.uploadButton, { backgroundColor: theme.colors.primary.main }]}
+                  onPress={pickImage}
+                >
+                  <Text style={[styles.uploadButtonText, { color: theme.colors.primary.contrast }]}>
+                    Choose Photo
                   </Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity 
+                  style={[styles.uploadButton, styles.uploadButtonSecondary, { borderColor: theme.colors.primary.main }]}
+                  onPress={takePhoto}
+                >
+                  <Text style={[styles.uploadButtonText, { color: theme.colors.primary.main }]}>
+                    Take Photo
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
+          )}
+        </View>
+
+        {/* Design Input Section */}
+        <View style={styles.inputSection}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+            What do you want to create?
+          </Text>
+          
+          <View style={styles.inputWrapper}>
+            <View style={[styles.inputContainer, { 
+              backgroundColor: theme.colors.background.secondary,
+              borderColor: theme.colors.border.light 
+            }]}>
+              <TextInput
+                style={[styles.designInput, { 
+                  color: theme.colors.text.primary,
+                }]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Describe your design vision... e.g., 'Transform this into a modern home office with plants and natural lighting'"
+                placeholderTextColor={theme.colors.text.secondary}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+            
+            {/* Floating Random Idea Button */}
+            <TouchableOpacity
+              style={[styles.floatingRandomButton, { 
+                backgroundColor: theme.colors.primary.main,
+                shadowColor: theme.colors.primary.main,
+              }]}
+              onPress={() => {
+                const randomIndex = Math.floor(Math.random() * popularIdeas.length);
+                setDescription(popularIdeas[randomIndex]);
+              }}
+            >
+              <DiceIcon size={16} color={theme.colors.primary.contrast} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -276,12 +484,12 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           style={[
             styles.generateButton,
             { 
-              backgroundColor: selectedImage ? theme.colors.primary.main : '#CCCCCC',
-              opacity: selectedImage ? 1 : 0.6,
+              backgroundColor: (selectedImage && description.trim()) ? theme.colors.primary.main : theme.colors.background.secondary,
+              borderColor: (selectedImage && description.trim()) ? theme.colors.primary.main : theme.colors.border.light,
             }
           ]}
           onPress={handleGenerateDesign}
-          disabled={!selectedImage || isGenerating}
+          disabled={!selectedImage || !description.trim() || isGenerating}
         >
           {isGenerating ? (
             <View style={styles.loadingContainer}>
@@ -292,7 +500,10 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             </View>
           ) : (
             <View style={styles.generateButtonContent}>
-              <Text style={[styles.generateButtonText, { color: theme.colors.primary.contrast }]}>
+              <SparkleIcon size={20} color={(selectedImage && description.trim()) ? theme.colors.primary.contrast : theme.colors.text.secondary} />
+              <Text style={[styles.generateButtonText, { 
+                color: (selectedImage && description.trim()) ? theme.colors.primary.contrast : theme.colors.text.secondary 
+              }]}>
                 Generate Design
               </Text>
             </View>
@@ -301,11 +512,12 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
         {/* Error Display */}
         {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
-            <Text style={[styles.errorText, { color: '#DC2626' }]}>{error}</Text>
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -314,163 +526,191 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 40,
+  keyboardAvoidingView: {
+    flex: 1,
   },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    flexGrow: 1,
+  },
+  
+  // Header Section
   headerSection: {
     alignItems: 'center',
-    marginBottom: 32,
-    paddingTop: 20,
+    paddingTop: 40,
+    paddingBottom: 24,
   },
   title: {
     fontSize: 32,
     fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 12,
-    letterSpacing: -0.5,
+    marginBottom: 8,
+    letterSpacing: -0.8,
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
-    maxWidth: width - 80,
-    opacity: 0.8,
-  },
-  card: {
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  cardHeader: {
-    marginBottom: 20,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
     opacity: 0.7,
+    maxWidth: width - 80,
+  },
+
+  // Hero Section
+  heroSection: {
+    marginBottom: 24,
   },
   imageContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  selectedImageWrapper: {
     position: 'relative',
-    borderRadius: 12,
+    borderRadius: 20,
     overflow: 'hidden',
+    height: 280,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 12,
   },
-  selectedImage: {
-    width: width - 96,
-    height: ((width - 96) * 3) / 4,
-    borderRadius: 12,
+  heroImage: {
+    width: '100%',
+    height: '100%',
   },
   imageOverlay: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: 20,
   },
-  imageOverlayText: {
-    fontSize: 12,
+  changeImageButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+  },
+  changeImageText: {
+    fontSize: 14,
     fontWeight: '600',
+    color: '#000',
   },
-  placeholderImage: {
-    width: width - 96,
-    height: ((width - 96) * 3) / 4,
+
+  // Upload Area
+  uploadArea: {
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderRadius: 12,
-    justifyContent: 'center',
+    borderRadius: 20,
+    padding: 40,
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.02)',
   },
-  placeholderText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
+  uploadIcon: {
+    marginBottom: 16,
   },
-  placeholderSubtext: {
-    fontSize: 14,
-    opacity: 0.6,
+  uploadTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
     textAlign: 'center',
   },
-  imageButtons: {
-    flexDirection: 'row',
-    gap: 16,
+  uploadSubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
+    opacity: 0.7,
   },
-  imageButton: {
+  uploadButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  uploadButton: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
+    alignItems: 'center',
   },
-  imageButtonText: {
+  uploadButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+  },
+  uploadButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },
-  themeInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    minHeight: 100,
+
+  // Input Section
+  inputSection: {
     marginBottom: 20,
   },
-  themeExamples: {
-    marginTop: 8,
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 16,
+    letterSpacing: -0.5,
   },
-  themeExamplesTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 12,
+  inputWrapper: {
+    position: 'relative',
   },
-  themeTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  themeTag: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  themeTagText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  generateButton: {
-    paddingVertical: 20,
+  inputContainer: {
     borderRadius: 16,
-    alignItems: 'center',
-    marginBottom: 24,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
+    elevation: 6,
+  },
+  designInput: {
+    padding: 20,
+    paddingRight: 60, // Make room for the floating button
+    fontSize: 16,
+    lineHeight: 24,
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+
+  // Floating Random Idea Button
+  floatingRandomButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
     elevation: 8,
   },
-  generateButtonContent: {
+
+  // Generate Button
+  generateButton: {
+    paddingVertical: 18,
+    borderRadius: 16,
     alignItems: 'center',
+    borderWidth: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  generateButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   generateButtonText: {
     fontSize: 18,
     fontWeight: '700',
+    letterSpacing: 0.5,
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -481,15 +721,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  errorCard: {
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
+
+  // Error
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
     borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
   },
   errorText: {
     fontSize: 14,
     fontWeight: '500',
+    color: '#DC2626',
     textAlign: 'center',
   },
 });

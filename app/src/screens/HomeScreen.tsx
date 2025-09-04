@@ -23,10 +23,6 @@ interface HomeScreenProps {
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
 
-  const handleGenerateDesign = () => {
-    navigation.navigate('Design');
-  };
-
   const handleFindProducts = () => {
     navigation.navigate('Search', { keywords: ['home decor', 'furniture', 'accessories'] });
   };
@@ -94,26 +90,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Action Buttons */}
+        {/* Quick Actions */}
         <View style={styles.actionsSection}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+            Quick Actions
+          </Text>
+          
           <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.colors.primary.main }]}
-            onPress={handleGenerateDesign}
-          >
-            <Text style={[styles.primaryButtonText, { color: theme.colors.primary.contrast }]}>
-              Generate Design
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.secondaryButton, { 
+            style={[styles.quickActionButton, { 
               backgroundColor: theme.colors.background.secondary,
               borderColor: theme.colors.border.light 
             }]}
             onPress={handleFindProducts}
           >
-            <Text style={[styles.secondaryButtonText, { color: theme.colors.text.primary }]}>
-              Find Products
+            <Text style={[styles.quickActionText, { color: theme.colors.text.primary }]}>
+              🔍 Find Products
+            </Text>
+            <Text style={[styles.quickActionSubtext, { color: theme.colors.text.secondary }]}>
+              Search for home decor items
             </Text>
           </TouchableOpacity>
         </View>
@@ -147,7 +141,7 @@ const styles = StyleSheet.create({
   heroSection: {
     alignItems: 'center',
     marginBottom: 48,
-    paddingTop: 20,
+    paddingTop: 40,
   },
   heroContent: {
     alignItems: 'center',
@@ -204,33 +198,33 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     gap: 16,
   },
-  primaryButton: {
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  quickActionButton: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 20,
     paddingHorizontal: 24,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  primaryButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    borderRadius: 16,
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  secondaryButtonText: {
+  quickActionText: {
     fontSize: 16,
     fontWeight: '600',
+    marginBottom: 4,
+  },
+  quickActionSubtext: {
+    fontSize: 14,
+    opacity: 0.7,
   },
   infoCard: {
     borderRadius: 20,

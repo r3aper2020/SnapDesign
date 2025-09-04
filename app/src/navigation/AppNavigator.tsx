@@ -1,17 +1,18 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { HomeScreen } from '../screens/HomeScreen';
-import { DesignScreen } from '../screens/DesignScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { ResultScreen } from '../screens/ResultScreen';
+import { BottomTabNavigator } from './BottomTabNavigator';
 
 export type RootStackParamList = {
+  MainTabs: undefined;
   Home: undefined;
   Design: undefined;
   Search: { keywords: string[] };
   Result: { 
     generatedImage: string;
+    originalImage: string;
     products: Array<{
       name: string;
       type: string;
@@ -26,6 +27,7 @@ export type RootStackParamList = {
       amazonLink?: string;
     }>;
   };
+  SavedDesigns: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -34,7 +36,7 @@ export const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator 
-        initialRouteName="Home"
+        initialRouteName="MainTabs"
         screenOptions={{
           headerStyle: {
             backgroundColor: '#1a1a1a',
@@ -46,14 +48,9 @@ export const AppNavigator = () => {
         }}
       >
         <Stack.Screen 
-          name="Home" 
-          component={HomeScreen} 
-          options={{ title: 'SnapDesign' }}
-        />
-        <Stack.Screen 
-          name="Design" 
-          component={DesignScreen} 
-          options={{ title: 'Generate Design' }}
+          name="MainTabs" 
+          component={BottomTabNavigator} 
+          options={{ headerShown: false }}
         />
         <Stack.Screen 
           name="Search" 

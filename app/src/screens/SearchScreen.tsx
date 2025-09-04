@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   headerSection: {
     alignItems: 'center',
     marginBottom: 32,
-    paddingTop: 20,
+    paddingTop: 40,
   },
   title: {
     fontSize: 32,
