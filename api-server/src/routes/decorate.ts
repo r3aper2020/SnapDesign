@@ -11,9 +11,9 @@ router.post('/', async (req, res) => {
       return res.status(500).json({ error: 'Gemini API key not configured' });
     }
 
-    const { imageBase64, theme = 'halloween', mimeType = 'image/jpeg' } = req.body as {
+    const { imageBase64, description = 'decorate this space', mimeType = 'image/jpeg' } = req.body as {
       imageBase64?: string;
-      theme?: string;
+      description?: string;
       mimeType?: string;
     };
 
@@ -32,8 +32,17 @@ router.post('/', async (req, res) => {
     const textModel = genAI.getGenerativeModel({ model: process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash' });
 
     // Step A: edit the image
-    const decoratePrompt = `You are a photo stylist. Decorate the room photo for: ${theme}.
-Constraints: do NOT block doors, windows, screens, or pathways; keep scale realistic; attach items where plausible (walls, mantle, door frame); avoid brand logos. Output an edited image.`;
+    const decoratePrompt = `You are a professional interior/exterior designer and photo stylist. Transform this space according to the user's request: "${description}".
+
+Constraints: 
+- Do NOT block doors, windows, screens, or pathways
+- Keep scale realistic and proportional
+- Attach items where plausible (walls, mantle, door frame, ground, etc.)
+- Avoid brand logos and text
+- Consider the space type (indoor/outdoor, room function, etc.)
+- Make the design cohesive and functional
+
+Output an edited image that fulfills the user's design vision.`;
 
     const gen1 = await imageModel.generateContent([
       { inlineData: { mimeType, data: cleanBase64 } } as any,
@@ -52,7 +61,7 @@ Constraints: do NOT block doors, windows, screens, or pathways; keep scale reali
     const productSchema = {
       type: SchemaType.OBJECT,
       properties: {
-        theme: { type: SchemaType.STRING },
+        description: { type: SchemaType.STRING },
         items: {
           type: SchemaType.ARRAY,
           items: {
@@ -86,27 +95,54 @@ Constraints: do NOT block doors, windows, screens, or pathways; keep scale reali
         },
         safetyNotes: { type: SchemaType.STRING }
       },
-      required: ['theme','items']
+      required: ['description','items']
     } as const;
 
-    const analysisPrompt = `Compare ORIGINAL vs EDITED. List ONLY items that were ADDED in EDITED.
+    const analysisPrompt = `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
 
-IMPORTANT: Keep the "name" field simple and clean (like "halloween doormat", "spider web", "banner"). 
+The user requested: "${description}"
 
-Add a "description" field with a SHORT, Amazon-search-optimized description using ONLY the specific terms people search for on Amazon. Keep it under 10 words. Focus on: material + size + pattern/design + key feature. Examples: "artificial wreath with red bows and pine cones" or "LED garland with red bows" or "mini artificial tree with ornaments" or "striped throw blanket" or "reindeer design pillow". NO marketing language, NO "perfect for" phrases, NO "features" - just searchable product terms.
+IMPORTANT: Include BOTH visible items AND the materials/supplies used to create them:
 
-Also be VERY descriptive in the "keywords" field - include specific design elements, patterns, materials, and visual details you can see. For example, instead of just ["doormat", "halloween"], use ["doormat", "halloween", "pumpkin design", "spiderweb pattern", "black and orange", "woven"]. Instead of just ["banner", "halloween"], use ["banner", "halloween", "spooky text", "ghost designs", "orange and black", "fabric"].
+VISIBLE ITEMS: Furniture, decorations, plants, lights, etc. that you can see in the image
+MATERIALS/SUPPLIES: Paint, wallpaper, flooring, hardware, tools, etc. that were used to create the changes
+
+EXAMPLES:
+- If a wall was painted red → include "red paint" as a product
+- If flooring was added → include "flooring" or "tile" as a product  
+- If wallpaper was added → include "wallpaper" as a product
+- If a plant was added → include "plant pot" and "plant" as products
+- If lights were added → include "string lights" or "lamp" as a product
+
+CRITICAL: Be consistent between "name" and "description" fields:
+
+- "name": The main product/item name (e.g., "red paint", "plant pot", "string lights", "wallpaper")
+- "description": Amazon search terms for THAT SAME product (e.g., if name is "red paint", description should be "interior wall paint red" or "latex paint red", NOT "paintbrush")
+
+EXAMPLES OF CORRECT CONSISTENCY:
+- Paint: name: "red paint" → description: "interior wall paint red" or "latex paint red"
+- Wallpaper: name: "wallpaper" → description: "removable wallpaper" or "peel and stick wallpaper"
+- Flooring: name: "hardwood flooring" → description: "engineered hardwood flooring" or "laminate flooring"
+- Garden: name: "plant pot" → description: "ceramic plant pot" or "terracotta planter"
+- Office: name: "standing desk" → description: "adjustable standing desk" or "bamboo desk"
+- Kitchen: name: "pendant light" → description: "kitchen pendant light" or "industrial pendant"
+- Living room: name: "throw pillow" → description: "decorative throw pillow" or "velvet pillow"
+- Outdoor: name: "string lights" → description: "outdoor string lights" or "patio lights"
+
+The "description" field should be SHORT Amazon search terms (under 10 words) for the SAME product as the name. Focus on: material + size + type + function. NO marketing language.
+
+Also be VERY descriptive in the "keywords" field - include specific design elements, patterns, materials, colors, and visual details you can see.
 
 Return valid JSON with this exact structure:
 {
-  "theme": "${theme}",
+  "description": "${description}",
   "items": [
     {
-      "name": "simple clean product name",
+      "name": "product name",
       "type": "item type",
       "qty": 1,
       "color": "color if applicable",
-      "description": "SHORT description with material + size + pattern + key features (under 10 words, no marketing language)",
+      "description": "Amazon search terms for the SAME product as name (under 10 words)",
       "keywords": ["keyword1", "keyword2", "design element1", "pattern1", "material1", "visual detail1"],
       "placement": {
         "note": "placement description",
@@ -118,13 +154,22 @@ Return valid JSON with this exact structure:
   "safetyNotes": "any safety concerns"
 }
 
-Use normalized bbox coordinates (0..1) around each added item. Only include items that were actually added to the image.`;
+Use normalized bbox coordinates (0..1) around each added item. Include ALL products needed to achieve the design changes.`;
 
-    const gen2 = await textModel.generateContent([
-      { text: analysisPrompt },
-      { inlineData: { mimeType, data: cleanBase64 } },
-      { inlineData: { mimeType: 'image/png', data: editedBase64 } },
-    ]);
+    let gen2;
+    try {
+      gen2 = await textModel.generateContent([
+        { text: analysisPrompt },
+        { inlineData: { mimeType, data: cleanBase64 } },
+        { inlineData: { mimeType: 'image/png', data: editedBase64 } },
+      ]);
+    } catch (textError: any) {
+      console.error('Text analysis error:', textError);
+      return res.status(500).json({ 
+        error: 'Failed to analyze images. Please try again with a different image or theme.',
+        details: textError.message 
+      });
+    }
 
     const productsJson = await gen2.response.text();
     
@@ -139,7 +184,17 @@ Use normalized bbox coordinates (0..1) around each added item. Only include item
     console.log('Raw response:', productsJson);
     console.log('Cleaned JSON:', cleanJson);
     
-    const products = JSON.parse(cleanJson);
+    let products;
+    try {
+      products = JSON.parse(cleanJson);
+    } catch (parseError: any) {
+      console.error('JSON parse error:', parseError);
+      console.error('Failed to parse JSON:', cleanJson);
+      return res.status(500).json({ 
+        error: 'Failed to parse AI response. Please try again.',
+        details: 'Invalid JSON format from AI'
+      });
+    }
     
     // Add Amazon links to each product using AI-generated descriptions
     for (const product of products.items) {
@@ -156,7 +211,7 @@ Use normalized bbox coordinates (0..1) around each added item. Only include item
         if (Array.isArray(product.color)) {
           searchTerms.push(product.color[0]);
         } else if (typeof product.color === 'string') {
-          const colors = product.color.split(',').map(c => c.trim());
+          const colors = product.color.split(',').map((c: string) => c.trim());
           searchTerms.push(colors[0]);
         }
       }
