@@ -32,17 +32,31 @@ router.post('/', async (req, res) => {
     const textModel = genAI.getGenerativeModel({ model: process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash' });
 
     // Step A: edit the image
-    const decoratePrompt = `You are a professional interior/exterior designer and photo stylist. Transform this space according to the user's request: "${description}".
+    const decoratePrompt = `You are a professional interior designer. Add decorations and enhancements to this space according to the user's request: "${description}".
 
-Constraints: 
-- Do NOT block doors, windows, screens, or pathways
-- Keep scale realistic and proportional
+IMPORTANT CONSTRAINTS:
+- DO NOT remove, move, or change existing doors, windows, walls, or room layout
+- DO NOT change the basic structure or architecture of the space
+- DO NOT remove existing furniture unless specifically requested
+- ONLY add new decorative elements, accessories, and enhancements
+- Keep all existing pathways, entrances, and exits completely clear
+
+WHAT TO ADD:
+- Decorative items, accessories, and enhancements as requested
+- Plants, artwork, lighting, and decorative objects
+- Seasonal decorations, colors, and themed elements
+- Soft furnishings like pillows, throws, and rugs
+- Wall decorations, mirrors, and hanging elements
+
+TECHNICAL REQUIREMENTS:
+- Keep scale realistic and proportional to the space
 - Attach items where plausible (walls, mantle, door frame, ground, etc.)
 - Avoid brand logos and text
-- Consider the space type (indoor/outdoor, room function, etc.)
-- Make the design cohesive and functional
+- Use appropriate lighting and shadows for realism
+- Ensure all additions complement the existing space
+- Maintain the original room's function and flow
 
-Output an edited image that fulfills the user's design vision.`;
+Create a tasteful, well-styled space by adding the requested decorations while preserving the original room structure and layout.`;
 
     const gen1 = await imageModel.generateContent([
       { inlineData: { mimeType, data: cleanBase64 } } as any,
