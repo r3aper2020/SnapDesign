@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../theme/ThemeProvider';
 import { endpoints } from '../config/api';
@@ -481,33 +482,32 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
         {/* Generate Button */}
         <TouchableOpacity
-          style={[
-            styles.generateButton,
-            { 
-              backgroundColor: (selectedImage && description.trim()) ? theme.colors.primary.main : theme.colors.background.secondary,
-              borderColor: (selectedImage && description.trim()) ? theme.colors.primary.main : theme.colors.border.light,
-            }
-          ]}
+          style={styles.generateButton}
           onPress={handleGenerateDesign}
           disabled={!selectedImage || !description.trim() || isGenerating}
         >
-          {isGenerating ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color={theme.colors.primary.contrast} size="small" />
-              <Text style={[styles.loadingText, { color: theme.colors.primary.contrast }]}>
-                Creating your design...
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.generateButtonContent}>
-              <SparkleIcon size={20} color={(selectedImage && description.trim()) ? theme.colors.primary.contrast : theme.colors.text.secondary} />
-              <Text style={[styles.generateButtonText, { 
-                color: (selectedImage && description.trim()) ? theme.colors.primary.contrast : theme.colors.text.secondary 
-              }]}>
-                Generate Design
-              </Text>
-            </View>
-          )}
+          <LinearGradient
+            colors={theme.colors.gradient.secondary}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.gradientGenerateButton}
+          >
+            {isGenerating ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color={theme.colors.text.primary} size="small" />
+                <Text style={[styles.loadingText, { color: theme.colors.text.primary }]}>
+                  Creating your design...
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.generateButtonContent}>
+                <SparkleIcon size={20} color={theme.colors.text.primary} />
+                <Text style={[styles.generateButtonText, { color: theme.colors.text.primary }]}>
+                  Generate Design
+                </Text>
+              </View>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Error Display */}
@@ -598,14 +598,16 @@ const styles = StyleSheet.create({
     color: '#000',
   },
 
-  // Upload Area
+  // Upload Area - Modern dark design
   uploadArea: {
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderRadius: 20,
+    borderRadius: 28,
     padding: 40,
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    position: 'relative',
+    overflow: 'hidden',
   },
   uploadIcon: {
     marginBottom: 16,
@@ -657,13 +659,15 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   inputContainer: {
-    borderRadius: 16,
+    borderRadius: 24,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 12,
+    position: 'relative',
+    overflow: 'hidden',
   },
   designInput: {
     padding: 20,
@@ -690,17 +694,23 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
 
-  // Generate Button
+  // Generate Button - Matching Find Products style
   generateButton: {
-    paddingVertical: 18,
-    borderRadius: 16,
+    borderRadius: 28,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 12,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  gradientGenerateButton: {
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    borderRadius: 28,
     alignItems: 'center',
-    borderWidth: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 10,
+    justifyContent: 'center',
   },
   generateButtonContent: {
     flexDirection: 'row',

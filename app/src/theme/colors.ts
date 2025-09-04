@@ -89,23 +89,30 @@ export const colors = {
       medium: 'rgba(0, 0, 0, 0.15)',
       dark: 'rgba(0, 0, 0, 0.25)',
     },
+    
+    // Gradient colors for modern effects
+    gradient: {
+      primary: ['#007AFF', '#5856D6'],
+      secondary: ['#4DA3FF', '#7A79E0'],
+      accent: ['#007AFF', '#0056CC', '#5856D6'],
+    },
   },
 
-  // Dark theme colors
+  // Dark theme colors - Modern AI Assistant Design
   dark: {
-    // Primary colors
+    // Primary colors - Vibrant gradient teal
     primary: {
-      main: '#0A84FF',
-      light: '#5E9EFF',
-      dark: '#0056CC',
+      main: '#00D4FF',
+      light: '#40E0FF',
+      dark: '#0099CC',
       contrast: '#FFFFFF',
     },
     
-    // Secondary colors
+    // Secondary colors - Purple accent
     secondary: {
-      main: '#5E5CE6',
-      light: '#7A79E0',
-      dark: '#3E3D99',
+      main: '#8B5CF6',
+      light: '#A78BFA',
+      dark: '#7C3AED',
       contrast: '#FFFFFF',
     },
     
@@ -151,35 +158,42 @@ export const colors = {
       },
     },
     
-    // Background colors
+    // Background colors - Deep dark with subtle variations
     background: {
-      primary: '#000000',
-      secondary: '#1C1C1E',
-      tertiary: '#2C2C2E',
-      dark: '#1F2937',
+      primary: '#0A0A0A',
+      secondary: '#1A1A1A',
+      tertiary: '#2A2A2A',
+      dark: '#000000',
     },
     
-    // Text colors
+    // Text colors - Clean whites and light grays
     text: {
       primary: '#FFFFFF',
-      secondary: '#EBEBF5',
-      tertiary: '#EBEBF599',
+      secondary: '#E5E5E5',
+      tertiary: '#B3B3B3',
       inverse: '#000000',
-      disabled: '#3A3A3C',
+      disabled: '#666666',
     },
     
-    // Border colors
+    // Border colors - Subtle grays
     border: {
-      light: '#38383A',
-      medium: '#48484A',
-      dark: '#636366',
+      light: '#333333',
+      medium: '#444444',
+      dark: '#555555',
     },
     
-    // Shadow colors
+    // Shadow colors - Deep shadows with subtle glow
     shadow: {
-      light: 'rgba(0, 0, 0, 0.3)',
-      medium: 'rgba(0, 0, 0, 0.4)',
-      dark: 'rgba(0, 0, 0, 0.5)',
+      light: 'rgba(0, 0, 0, 0.4)',
+      medium: 'rgba(0, 0, 0, 0.6)',
+      dark: 'rgba(0, 0, 0, 0.8)',
+    },
+    
+    // Gradient colors for modern effects
+    gradient: {
+      primary: ['#00D4FF', '#8B5CF6'],
+      secondary: ['#40E0FF', '#A78BFA'],
+      accent: ['#00D4FF', '#0099CC', '#8B5CF6'],
     },
   },
 } as const;

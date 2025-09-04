@@ -6,7 +6,7 @@ import { ResultScreen } from '../screens/ResultScreen';
 import { BottomTabNavigator } from './BottomTabNavigator';
 
 export type RootStackParamList = {
-  MainTabs: undefined;
+  MainTabs: { screen?: string } | undefined;
   Home: undefined;
   Design: undefined;
   Search: { keywords: string[] };
@@ -26,6 +26,7 @@ export type RootStackParamList = {
       };
       amazonLink?: string;
     }>;
+    designId?: string;
   };
   SavedDesigns: undefined;
 };

@@ -41,6 +41,12 @@ class DesignStorage {
         generatedImage TEXT NOT NULL,
         products TEXT NOT NULL
       );
+      
+      CREATE TABLE IF NOT EXISTS checkbox_states (
+        design_id TEXT PRIMARY KEY,
+        checked_items TEXT NOT NULL,
+        FOREIGN KEY (design_id) REFERENCES designs (id) ON DELETE CASCADE
+      );
     `);
   }
 
@@ -168,6 +174,45 @@ class DesignStorage {
     } catch (error) {
       console.error('Error getting design by ID:', error);
       return null;
+    }
+  }
+
+  // Save checkbox states for a design
+  async saveCheckboxStates(designId: string, checkedItems: Set<number>): Promise<void> {
+    try {
+      await this.initDatabase();
+      
+      const checkedArray = Array.from(checkedItems);
+      await this.db!.runAsync(
+        `INSERT OR REPLACE INTO checkbox_states (design_id, checked_items) VALUES (?, ?)`,
+        [designId, JSON.stringify(checkedArray)]
+      );
+      console.log('✅ Checkbox states saved for design:', designId);
+    } catch (error) {
+      console.error('❌ Error saving checkbox states:', error);
+      throw new Error('Failed to save checkbox states');
+    }
+  }
+
+  // Load checkbox states for a design
+  async loadCheckboxStates(designId: string): Promise<Set<number>> {
+    try {
+      await this.initDatabase();
+      
+      const result = await this.db!.getFirstAsync(
+        `SELECT checked_items FROM checkbox_states WHERE design_id = ?`,
+        [designId]
+      );
+
+      if (result && result.checked_items) {
+        const checkedArray = JSON.parse(result.checked_items);
+        return new Set(checkedArray);
+      }
+      
+      return new Set();
+    } catch (error) {
+      console.error('❌ Error loading checkbox states:', error);
+      return new Set();
     }
   }
 }

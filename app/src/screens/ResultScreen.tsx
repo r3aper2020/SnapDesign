@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { PinchGestureHandler, PanGestureHandler, State } from 'react-native-gest
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { designStorage } from '../services/DesignStorage';
 
 const { width } = Dimensions.get('window');
 
@@ -40,13 +41,14 @@ interface ResultScreenProps {
         };
         amazonLink?: string;
       }>;
+      designId?: string;
     };
   };
 }
 
 export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route }) => {
   const { theme } = useTheme();
-  const { generatedImage, originalImage, products } = route.params;
+  const { generatedImage, originalImage, products, designId } = route.params;
   
   // Swipe comparison state
   const [isShowingOriginal, setIsShowingOriginal] = useState(false);
@@ -64,6 +66,22 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   
   // Shopping list state
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
+
+  // Load checkbox states when component mounts
+  useEffect(() => {
+    const loadCheckboxStates = async () => {
+      if (designId) {
+        try {
+          const savedStates = await designStorage.loadCheckboxStates(designId);
+          setCheckedItems(savedStates);
+        } catch (error) {
+          console.error('Error loading checkbox states:', error);
+        }
+      }
+    };
+
+    loadCheckboxStates();
+  }, [designId]);
 
   const shareImage = async () => {
     try {
@@ -174,7 +192,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   };
 
   // Shopping list functions
-  const toggleCheckbox = (index: number) => {
+  const toggleCheckbox = async (index: number) => {
     setCheckedItems(prev => {
       const newSet = new Set(prev);
       if (newSet.has(index)) {
@@ -182,6 +200,14 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
       } else {
         newSet.add(index);
       }
+      
+      // Save checkbox states to database
+      if (designId) {
+        designStorage.saveCheckboxStates(designId, newSet).catch(error => {
+          console.error('Error saving checkbox states:', error);
+        });
+      }
+      
       return newSet;
     });
   };
@@ -300,7 +326,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: theme.colors.secondary.main }]}
-              onPress={() => navigation.navigate('Design')}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Design' })}
             >
               <Text style={[styles.actionButtonText, { color: theme.colors.secondary.contrast }]}>
                 Create Another
