@@ -1,5 +1,21 @@
 import * as SQLite from 'expo-sqlite';
 
+export interface TokenUsage {
+  imageGeneration: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
+  textAnalysis: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
+  grandTotal: number;
+  inputTokensTotal: number;
+  outputTokensTotal: number;
+}
+
 export interface SavedDesign {
   id: string;
   timestamp: number;
@@ -19,6 +35,7 @@ export interface SavedDesign {
     };
     amazonLink?: string;
   }>;
+  tokenUsage?: TokenUsage;
 }
 
 const DB_NAME = 'designs.db';
@@ -39,7 +56,8 @@ class DesignStorage {
         description TEXT NOT NULL,
         originalImage TEXT NOT NULL,
         generatedImage TEXT NOT NULL,
-        products TEXT NOT NULL
+        products TEXT NOT NULL,
+        tokenUsage TEXT
       );
       
       CREATE TABLE IF NOT EXISTS checkbox_states (
@@ -48,6 +66,16 @@ class DesignStorage {
         FOREIGN KEY (design_id) REFERENCES designs (id) ON DELETE CASCADE
       );
     `);
+
+    // Add tokenUsage column if it doesn't exist (migration for existing databases)
+    try {
+      await this.db.execAsync(`
+        ALTER TABLE designs ADD COLUMN tokenUsage TEXT;
+      `);
+    } catch (error) {
+      // Column already exists, ignore the error
+      console.log('TokenUsage column already exists or migration not needed');
+    }
   }
 
   // Save a new design
@@ -62,15 +90,16 @@ class DesignStorage {
       };
 
       await this.db!.runAsync(
-        `INSERT INTO designs (id, timestamp, description, originalImage, generatedImage, products) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO designs (id, timestamp, description, originalImage, generatedImage, products, tokenUsage) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           savedDesign.id,
           savedDesign.timestamp,
           savedDesign.description,
           savedDesign.originalImage,
           savedDesign.generatedImage,
-          JSON.stringify(savedDesign.products)
+          JSON.stringify(savedDesign.products),
+          JSON.stringify(savedDesign.tokenUsage || null)
         ]
       );
 
@@ -79,7 +108,8 @@ class DesignStorage {
         description: savedDesign.description,
         productsCount: savedDesign.products.length,
         originalImageSize: savedDesign.originalImage.length,
-        generatedImageSize: savedDesign.generatedImage.length
+        generatedImageSize: savedDesign.generatedImage.length,
+        tokenUsage: savedDesign.tokenUsage?.grandTotal || 0
       });
       return savedDesign;
     } catch (error) {
@@ -103,7 +133,8 @@ class DesignStorage {
         description: row.description,
         originalImage: row.originalImage,
         generatedImage: row.generatedImage,
-        products: JSON.parse(row.products)
+        products: JSON.parse(row.products),
+        tokenUsage: row.tokenUsage ? JSON.parse(row.tokenUsage) : undefined
       }));
 
       console.log('📚 Loaded designs from database:', {
@@ -213,6 +244,65 @@ class DesignStorage {
     } catch (error) {
       console.error('❌ Error loading checkbox states:', error);
       return new Set();
+    }
+  }
+
+  // Get token usage statistics
+  async getTokenUsageStats(): Promise<{
+    totalGenerations: number;
+    totalTokens: number;
+    averageTokensPerGeneration: number;
+    breakdown: {
+      imageGeneration: number;
+      textAnalysis: number;
+    };
+  }> {
+    try {
+      await this.initDatabase();
+      
+      const result = await this.db!.getAllAsync(
+        `SELECT tokenUsage FROM designs WHERE tokenUsage IS NOT NULL`
+      );
+
+      let totalTokens = 0;
+      let totalImageTokens = 0;
+      let totalTextTokens = 0;
+      let validEntries = 0;
+
+      result.forEach((row: any) => {
+        if (row.tokenUsage) {
+          try {
+            const tokenUsage = JSON.parse(row.tokenUsage);
+            totalTokens += tokenUsage.grandTotal || 0;
+            totalImageTokens += tokenUsage.imageGeneration?.totalTokens || 0;
+            totalTextTokens += tokenUsage.textAnalysis?.totalTokens || 0;
+            validEntries++;
+          } catch (parseError) {
+            console.warn('Failed to parse token usage:', parseError);
+          }
+        }
+      });
+
+      return {
+        totalGenerations: validEntries,
+        totalTokens,
+        averageTokensPerGeneration: validEntries > 0 ? Math.round(totalTokens / validEntries) : 0,
+        breakdown: {
+          imageGeneration: totalImageTokens,
+          textAnalysis: totalTextTokens
+        }
+      };
+    } catch (error) {
+      console.error('❌ Error getting token usage stats:', error);
+      return {
+        totalGenerations: 0,
+        totalTokens: 0,
+        averageTokensPerGeneration: 0,
+        breakdown: {
+          imageGeneration: 0,
+          textAnalysis: 0
+        }
+      };
     }
   }
 }

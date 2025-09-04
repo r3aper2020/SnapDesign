@@ -29,6 +29,7 @@ export type RootStackParamList = {
     designId?: string;
   };
   SavedDesigns: undefined;
+  Settings: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();

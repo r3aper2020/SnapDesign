@@ -131,8 +131,8 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     
     // Calculate bounds based on current scale
     const currentScale = savedScale.current;
-    const containerWidth = width - 64;
-    const containerHeight = 400;
+    const containerWidth = width - 88;
+    const containerHeight = 280;
     const scaledWidth = containerWidth * currentScale;
     const scaledHeight = containerHeight * currentScale;
     const overflowX = (scaledWidth - containerWidth) / 2;
@@ -159,8 +159,8 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
       
       // Calculate bounds based on current scale
       const currentScale = savedScale.current;
-      const containerWidth = width - 64;
-      const containerHeight = 400;
+      const containerWidth = width - 88;
+      const containerHeight = 280;
       const scaledWidth = containerWidth * currentScale;
       const scaledHeight = containerHeight * currentScale;
       const overflowX = (scaledWidth - containerWidth) / 2;
@@ -267,7 +267,6 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                           <Image 
                             source={{ uri: `data:image/jpeg;base64,${originalImage}` }} 
                             style={styles.generatedImage} 
-                            resizeMode="cover"
                             fadeDuration={0}
                           />
                         ) : (
@@ -283,7 +282,6 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                           <Image 
                             source={{ uri: `data:image/jpeg;base64,${generatedImage}` }} 
                             style={styles.generatedImage} 
-                            resizeMode="cover"
                             fadeDuration={0}
                           />
                         ) : (
@@ -493,24 +491,31 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 24,
     position: 'relative',
-    width: width - 64,
-    height: 400,
+    width: width - 88, // Account for card padding (20px each side) + scroll padding (16px each side)
+    height: 280,
     overflow: 'hidden',
-    borderRadius: 12,
-    backgroundColor: '#f0f0f0', // Temporary background to see container
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 12,
+    alignSelf: 'center',
   },
   imageWrapper: {
-    width: width - 64,
-    height: 400,
+    width: width - 88,
+    height: 280,
     justifyContent: 'center',
     alignItems: 'center',
   },
   generatedImage: {
-    width: width - 64,
-    height: 400,
-    borderRadius: 12,
+    width: width - 88,
+    height: 280,
+    borderRadius: 20,
+    resizeMode: 'cover',
   },
   resetZoomButton: {
     position: 'absolute',
@@ -537,9 +542,9 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   noImageContainer: {
-    width: width - 64,
-    height: 400,
-    borderRadius: 12,
+    width: width - 88,
+    height: 280,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,

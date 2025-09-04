@@ -28,8 +28,16 @@ router.post('/', async (req, res) => {
     }
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const imageModel = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview' });
-    const textModel = genAI.getGenerativeModel({ model: process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash' });
+    const imageModelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview';
+    const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash';
+    
+    console.log('🤖 Using models:', {
+      imageModel: imageModelName,
+      textModel: textModelName
+    });
+    
+    const imageModel = genAI.getGenerativeModel({ model: imageModelName });
+    const textModel = genAI.getGenerativeModel({ model: textModelName });
 
     // Step A: edit the image
     const decoratePrompt = `You are a professional interior designer. Add decorations and enhancements to this space according to the user's request: "${description}".
@@ -70,6 +78,14 @@ Create a tasteful, well-styled space by adding the requested decorations while p
       return res.status(500).json({ error: 'No image returned from image model' });
     }
     const editedBase64: string = imagePart.inlineData.data;
+
+    // Extract token usage from image generation
+    const imageUsage = (gen1Resp as any)?.usageMetadata || {};
+    console.log('🖼️ Image generation tokens:', {
+      inputTokens: imageUsage.promptTokenCount || 0,
+      outputTokens: imageUsage.candidatesTokenCount || 0,
+      totalTokens: imageUsage.totalTokenCount || 0
+    });
 
     // Step B: compare original vs edited with a response schema
     const productSchema = {
@@ -185,7 +201,16 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
       });
     }
 
-    const productsJson = await gen2.response.text();
+    const gen2Resp = gen2.response;
+    const productsJson = await gen2Resp.text();
+    
+    // Extract token usage from text analysis
+    const textUsage = (gen2Resp as any)?.usageMetadata || {};
+    console.log('📝 Text analysis tokens:', {
+      inputTokens: textUsage.promptTokenCount || 0,
+      outputTokens: textUsage.candidatesTokenCount || 0,
+      totalTokens: textUsage.totalTokenCount || 0
+    });
     
     // Clean the response - remove markdown code blocks if present
     let cleanJson = productsJson;
@@ -268,7 +293,30 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
       product.amazonLink = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}&tag=snapdesign-20`;
     }
 
-    return res.json({ editedImageBase64: editedBase64, products });
+    // Calculate total token usage
+    const totalTokens = {
+      imageGeneration: {
+        inputTokens: imageUsage.promptTokenCount || 0,
+        outputTokens: imageUsage.candidatesTokenCount || 0,
+        totalTokens: imageUsage.totalTokenCount || 0
+      },
+      textAnalysis: {
+        inputTokens: textUsage.promptTokenCount || 0,
+        outputTokens: textUsage.candidatesTokenCount || 0,
+        totalTokens: textUsage.totalTokenCount || 0
+      },
+      grandTotal: (imageUsage.totalTokenCount || 0) + (textUsage.totalTokenCount || 0),
+      inputTokensTotal: (imageUsage.promptTokenCount || 0) + (textUsage.promptTokenCount || 0),
+      outputTokensTotal: (imageUsage.candidatesTokenCount || 0) + (textUsage.candidatesTokenCount || 0)
+    };
+
+    console.log('💰 Total token usage for this generation:', totalTokens);
+
+    return res.json({ 
+      editedImageBase64: editedBase64, 
+      products,
+      tokenUsage: totalTokens
+    });
   } catch (err: any) {
     console.error('decorate error', err);
     return res.status(500).json({ error: err.message || 'decorate failed' });

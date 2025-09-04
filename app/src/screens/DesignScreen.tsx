@@ -330,7 +330,8 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         hasEditedImage: !!data.editedImageBase64,
         editedImageSize: data.editedImageBase64?.length || 0,
         productsCount: data.products?.items?.length || data.products?.length || 0,
-        products: data.products?.items || data.products
+        products: data.products?.items || data.products,
+        tokenUsage: data.tokenUsage
       });
 
       if (data.editedImageBase64 && data.products) {
@@ -340,7 +341,8 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             description: description.trim(),
             originalImage: selectedImage,
             generatedImage: data.editedImageBase64,
-            products: data.products.items || data.products
+            products: data.products.items || data.products,
+            tokenUsage: data.tokenUsage
           });
           console.log('💾 Design saved successfully');
         } catch (saveError) {
@@ -604,6 +606,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: 28,
     padding: 40,
+    paddingHorizontal: 8,
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.02)',
     position: 'relative',
@@ -627,14 +630,16 @@ const styles = StyleSheet.create({
   uploadButtons: {
     flexDirection: 'row',
     gap: 12,
-    width: '100%',
+    width: '80%',
+    alignSelf: 'center',
   },
   uploadButton: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 12,
     alignItems: 'center',
+    minHeight: 36,
   },
   uploadButtonSecondary: {
     backgroundColor: 'transparent',
