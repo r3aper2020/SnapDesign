@@ -2,6 +2,7 @@ package decorate
 
 import (
 	"context"
+	"log"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +27,7 @@ func DecorateHandler(config models.Config) gin.HandlerFunc {
 			req.Description = "decorate this space"
 		}
 		if req.MimeType == "" {
-			req.MimeType = "image/jpeg"
+			req.MimeType = "jpeg"
 		}
 
 		// Strip data URL prefix if present
@@ -39,6 +40,7 @@ func DecorateHandler(config models.Config) gin.HandlerFunc {
 		}
 
 		// Initialize Gemini client
+		log.Printf("Initializing Gemini client\n🤖 Using models:\nimage model:%s\ntext model:%s\n", config.GCP.GEMINI_IMAGE_MODEL, config.GCP.GEMINI_TEXT_MODEL)
 		ctx := context.Background()
 		gc, err := ai.NewGeminiClient(ctx, config.GCP.GEMINI_API_KEY, config.GCP.GEMINI_IMAGE_MODEL, config.GCP.GEMINI_TEXT_MODEL)
 		if err != nil {
@@ -97,6 +99,8 @@ func DecorateHandler(config models.Config) gin.HandlerFunc {
 			response.TokenUsage.TextAnalysis.InputTokens
 		response.TokenUsage.OutputTokensTotal = response.TokenUsage.ImageGeneration.OutputTokens +
 			response.TokenUsage.TextAnalysis.OutputTokens
+
+		log.Printf("🖼️ Total token usage:\ninput tokens: %d\noutput tokens: %d\n💰 Total token usage for this generation: %d\n", response.TokenUsage.InputTokensTotal, response.TokenUsage.OutputTokensTotal, response.TokenUsage.GrandTotal)
 
 		c.JSON(200, response)
 	}

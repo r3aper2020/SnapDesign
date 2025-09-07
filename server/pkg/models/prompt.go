@@ -1,6 +1,8 @@
 package models
 
 const (
+	//Used to generate the decorated image
+	//
 	DecoratePrompt = `You are a professional interior designer. Add decorations and enhancements to this space according to the user's request: "%s".
 
 IMPORTANT CONSTRAINTS:
@@ -27,6 +29,8 @@ TECHNICAL REQUIREMENTS:
 
 Create a tasteful, well-styled space by adding the requested decorations while preserving the original room structure and layout.`
 
+	// Used to analyze the generated image and generate the product analysis
+	//
 	AnalysisPrompt = `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
 
 The user requested: "%s"
