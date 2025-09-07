@@ -1,0 +1,27 @@
+server_config:
+  port: ${PORT}
+  tls_mode: ${TLS_MODE}
+  tls_cert_file: ${TLS_CERT_FILE}
+  tls_key_file: ${TLS_KEY_FILE}
+  tls_domains: ${TLS_DOMAINS}
+  tls_email: ${TLS_EMAIL}
+
+server_security_config:
+  api_jwt_secret: ${API_JWT_SECRET}
+  api_jwt_issuer: ${API_JWT_ISSUER}
+  api_jwt_audience: ${API_JWT_AUDIENCE}
+
+gcp_config:
+  gcp_project_id: ${GCP_PROJECT_ID}
+  gcp_region: ${GCP_REGION}
+  gemini_api_key: ${GEMINI_API_KEY}
+  gemini_image_model: ${GEMINI_IMAGE_MODEL}
+  gemini_text_model: ${GEMINI_TEXT_MODEL}
+
+amazon_config:
+  amazon_access_key: ${AMAZON_ACCESS_KEY}
+  amazon_secret_key: ${AMAZON_SECRET_KEY}
+  amazon_partner_tag: ${AMAZON_PARTNER_TAG}
+  amazon_partner_type: ${AMAZON_PARTNER_TYPE}
+  amazon_marketplace: ${AMAZON_MARKETPLACE}
+
