@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Alert,
   Linking,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
@@ -149,7 +150,7 @@ export const SettingsScreen: React.FC = () => {
   const handleSupportPress = () => {
     Alert.alert(
       'Support',
-      'Contact us at support@snapdesign.app for any questions or issues.',
+      'Contact us at support@revibe.app for any questions or issues.',
       [
         { text: 'OK', style: 'default' }
       ]
@@ -178,19 +179,25 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+      {/* Fixed Header */}
+      <View style={[styles.fixedHeader, { backgroundColor: theme.colors.background.primary }]}>
+        <Image 
+          source={require('../../assets/re-vibe.png')} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={[styles.title, { color: theme.colors.text.primary }]}>
+          Settings
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
+          Customize your app experience
+        </Text>
+      </View>
+      
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section */}
-        <View style={styles.headerSection}>
-          <Text style={[styles.title, { color: theme.colors.text.primary }]}>
-            Settings
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-            Customize your app experience
-          </Text>
-        </View>
 
         {/* Appearance Section */}
         <View style={[styles.section, { backgroundColor: theme.colors.background.secondary }]}>
@@ -345,10 +352,10 @@ export const SettingsScreen: React.FC = () => {
         {/* App Info */}
         <View style={styles.appInfo}>
           <Text style={[styles.appVersion, { color: theme.colors.text.secondary }]}>
-            SnapDesign v1.0.0
+            ReVibe v1.0.0
           </Text>
           <Text style={[styles.appCopyright, { color: theme.colors.text.secondary }]}>
-            © 2024 SnapDesign. All rights reserved.
+            © 2024 ReVibe. All rights reserved.
           </Text>
         </View>
       </ScrollView>
@@ -364,10 +371,21 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  headerSection: {
+  // Fixed Header Section
+  fixedHeader: {
     alignItems: 'center',
-    marginBottom: 24,
-    paddingTop: 30,
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginTop: -30, // Crop 25% from top (120 * 0.25 = 30)
+    marginBottom: -28, // Crop 25% from bottom (120 * 0.25 = 30) + original 2 margin
+    overflow: 'hidden',
   },
   title: {
     fontSize: 28,

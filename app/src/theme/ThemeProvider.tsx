@@ -28,7 +28,7 @@ interface ThemeProviderProps {
 // Theme provider component
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ 
   children, 
-  initialTheme = 'light' 
+  initialTheme = 'dark' 
 }) => {
   const [isDark, setIsDark] = useState(initialTheme === 'dark');
 

@@ -301,10 +301,10 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             {/* Reset Zoom Button */}
             {isZoomed && (
               <TouchableOpacity
-                style={[styles.resetZoomButton, { backgroundColor: theme.colors.primary.main }]}
+                style={[styles.resetZoomButton, { backgroundColor: theme.colors.secondary.main }]}
                 onPress={resetZoom}
               >
-                <Text style={[styles.resetZoomText, { color: theme.colors.primary.contrast }]}>
+                <Text style={[styles.resetZoomText, { color: theme.colors.secondary.contrast }]}>
                   Reset Zoom
                 </Text>
               </TouchableOpacity>
@@ -314,10 +314,10 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.colors.primary.main }]}
+              style={[styles.actionButton, { backgroundColor: theme.colors.accent.purple }]}
               onPress={shareImage}
             >
-              <Text style={[styles.actionButtonText, { color: theme.colors.primary.contrast }]}>
+              <Text style={[styles.actionButtonText, { color: theme.colors.text.primary }]}>
                 Share Design
               </Text>
             </TouchableOpacity>

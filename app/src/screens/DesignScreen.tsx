@@ -368,6 +368,21 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+      {/* Fixed Header */}
+      <View style={[styles.fixedHeader, { backgroundColor: theme.colors.background.primary }]}>
+        <Image 
+          source={require('../../assets/re-vibe.png')} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={[styles.title, { color: theme.colors.text.primary }]}>
+          Design Studio
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
+          Transform any space with AI-powered design
+        </Text>
+      </View>
+      
       <KeyboardAvoidingView 
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -379,15 +394,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           bounces={false}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Modern Header */}
-        <View style={styles.headerSection}>
-          <Text style={[styles.title, { color: theme.colors.text.primary }]}>
-            Design Studio
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-            Transform any space with AI-powered design
-          </Text>
-        </View>
 
         {/* Hero Image Section */}
         <View style={styles.heroSection}>
@@ -421,18 +427,18 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
               </Text>
               <View style={styles.uploadButtons}>
                 <TouchableOpacity 
-                  style={[styles.uploadButton, { backgroundColor: theme.colors.primary.main }]}
+                  style={[styles.uploadButton, { backgroundColor: theme.colors.secondary.main }]}
                   onPress={pickImage}
                 >
-                  <Text style={[styles.uploadButtonText, { color: theme.colors.primary.contrast }]}>
+                  <Text style={[styles.uploadButtonText, { color: theme.colors.secondary.contrast }]}>
                     Choose Photo
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[styles.uploadButton, styles.uploadButtonSecondary, { borderColor: theme.colors.primary.main }]}
+                  style={[styles.uploadButton, styles.uploadButtonSecondary, { borderColor: theme.colors.accent.purple }]}
                   onPress={takePhoto}
                 >
-                  <Text style={[styles.uploadButtonText, { color: theme.colors.primary.main }]}>
+                  <Text style={[styles.uploadButtonText, { color: theme.colors.accent.purple }]}>
                     Take Photo
                   </Text>
                 </TouchableOpacity>
@@ -469,15 +475,15 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             {/* Floating Random Idea Button */}
             <TouchableOpacity
               style={[styles.floatingRandomButton, { 
-                backgroundColor: theme.colors.primary.main,
-                shadowColor: theme.colors.primary.main,
+                backgroundColor: theme.colors.secondary.main,
+                shadowColor: theme.colors.secondary.main,
               }]}
               onPress={() => {
                 const randomIndex = Math.floor(Math.random() * popularIdeas.length);
                 setDescription(popularIdeas[randomIndex]);
               }}
             >
-              <DiceIcon size={16} color={theme.colors.primary.contrast} />
+              <DiceIcon size={16} color={theme.colors.secondary.contrast} />
             </TouchableOpacity>
           </View>
         </View>
@@ -489,7 +495,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           disabled={!selectedImage || !description.trim() || isGenerating}
         >
           <LinearGradient
-            colors={theme.colors.gradient.secondary}
+            colors={theme.colors.gradient.primary}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.gradientGenerateButton}
@@ -532,16 +538,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 24,
+    padding: 16,
     paddingBottom: 32,
     flexGrow: 1,
   },
   
-  // Header Section
-  headerSection: {
+  // Fixed Header Section
+  fixedHeader: {
     alignItems: 'center',
-    paddingTop: 40,
-    paddingBottom: 24,
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginTop: -30, // Crop 25% from top (120 * 0.25 = 30)
+    marginBottom: -28, // Crop 25% from bottom (120 * 0.25 = 30) + original 2 margin
+    overflow: 'hidden',
   },
   title: {
     fontSize: 32,
@@ -597,7 +613,7 @@ const styles = StyleSheet.create({
   changeImageText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#000',
+    color: '#FFFFFF',
   },
 
   // Upload Area - Modern dark design
@@ -702,7 +718,7 @@ const styles = StyleSheet.create({
   // Generate Button - Matching Find Products style
   generateButton: {
     borderRadius: 28,
-    shadowColor: '#8B5CF6',
+    shadowColor: '#9B51E0',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
@@ -739,8 +755,8 @@ const styles = StyleSheet.create({
 
   // Error
   errorContainer: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
+    backgroundColor: 'rgba(255, 69, 58, 0.1)',
+    borderColor: 'rgba(255, 69, 58, 0.3)',
     borderWidth: 1,
     borderRadius: 12,
     padding: 16,
@@ -749,7 +765,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#DC2626',
+    color: '#FF453A',
     textAlign: 'center',
   },
 });

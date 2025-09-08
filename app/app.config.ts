@@ -4,28 +4,28 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 
 const config: ExpoConfig = {
-  name: 'SnapDesign',
-  slug: 'SnapDesign',
+  name: 'ReVibe',
+  slug: 'ReVibe',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/icon.png',
+    icon: './assets/re-vibe.png',
   userInterfaceStyle: 'light',
   newArchEnabled: true,
   splash: {
-    image: './assets/splash-icon.png',
+    image: './assets/re-vibe.png',
     resizeMode: 'contain',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#121212',
   },
   ios: { supportsTablet: true },
   android: {
     adaptiveIcon: {
-      foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#ffffff',
+      foregroundImage: './assets/re-vibe.png',
+      backgroundColor: '#121212',
     },
     edgeToEdgeEnabled: true,
   },
   web: {
-    favicon: './assets/favicon.png',
+    favicon: './assets/re-vibe.png',
   },
   extra: {
     apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:4000',

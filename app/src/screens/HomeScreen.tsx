@@ -7,6 +7,7 @@ import {
   ScrollView,
   Dimensions,
   StyleSheet,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
@@ -159,27 +160,6 @@ interface HomeScreenProps {
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
 
-  // Get current month for seasonal themes
-  const getCurrentSeasonalTheme = () => {
-    const month = new Date().getMonth() + 1; // 1-12
-    const themes = {
-      1: { name: 'New Year', emoji: '🎊', color: '#FFD700', description: 'Fresh starts and golden moments' },
-      2: { name: 'Valentine\'s', emoji: '💕', color: '#FF69B4', description: 'Love and romance in every corner' },
-      3: { name: 'Spring', emoji: '🌸', color: '#FFB6C1', description: 'Fresh blooms and renewal' },
-      4: { name: 'Easter', emoji: '🐰', color: '#98FB98', description: 'Pastel perfection and new beginnings' },
-      5: { name: 'Spring Garden', emoji: '🌺', color: '#FFA07A', description: 'Floral beauty and growth' },
-      6: { name: 'Summer', emoji: '☀️', color: '#FFA500', description: 'Bright and vibrant energy' },
-      7: { name: 'Independence', emoji: '🇺🇸', color: '#FF0000', description: 'Patriotic pride and celebration' },
-      8: { name: 'Summer Vibes', emoji: '🏖️', color: '#87CEEB', description: 'Beach house and coastal living' },
-      9: { name: 'Back to School', emoji: '📚', color: '#9370DB', description: 'Study spaces and organization' },
-      10: { name: 'Halloween', emoji: '🎃', color: '#FF8C00', description: 'Spooky and mysterious atmosphere' },
-      11: { name: 'Thanksgiving', emoji: '🦃', color: '#D2691E', description: 'Warm and cozy gatherings' },
-      12: { name: 'Christmas', emoji: '🎄', color: '#228B22', description: 'Festive magic and holiday cheer' }
-    };
-    return themes[month as keyof typeof themes] || themes[1];
-  };
-
-  const seasonalTheme = getCurrentSeasonalTheme();
 
 
   const handleDesignWithTheme = () => {
@@ -192,34 +172,46 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* ReVibe Header */}
+        <View style={styles.headerSection}>
+          <Image 
+            source={require('../../assets/re-vibe.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={[styles.appSubtitle, { color: theme.colors.text.secondary }]}>
+            AI-Powered Design Studio
+          </Text>
+        </View>
+
         {/* Hero Banner */}
         <View style={styles.heroBanner}>
           <LinearGradient
-            colors={[seasonalTheme.color + '20', seasonalTheme.color + '10', 'transparent']}
+            colors={theme.colors.gradient.primary}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroGradient}
           >
             <View style={styles.heroContent}>
-              <Text style={styles.heroEmoji}>{seasonalTheme.emoji}</Text>
+              <Text style={styles.heroEmoji}>✨</Text>
               <Text style={[styles.heroTitle, { color: theme.colors.text.primary }]}>
-                {seasonalTheme.name} Design Studio
+                Transform Any Space
               </Text>
-              <Text style={[styles.heroSubtitle, { color: theme.colors.text.secondary }]}>
-                {seasonalTheme.description}
+              <Text style={[styles.heroSubtitle, { color: theme.colors.text.primary }]}>
+                Create stunning designs with AI-powered creativity
               </Text>
               <TouchableOpacity
                 style={styles.heroButton}
                 onPress={handleDesignWithTheme}
               >
                 <LinearGradient
-                  colors={theme.colors.gradient.primary}
+                  colors={['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.heroButtonGradient}
                 >
                   <Text style={[styles.heroButtonText, { color: theme.colors.text.primary }]}>
-                    Create {seasonalTheme.name} Design
+                    Start Creating
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -337,6 +329,27 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 40,
   },
+  // Header Section
+  headerSection: {
+    alignItems: 'center',
+    marginBottom: 32,
+    paddingTop: 20,
+  },
+  logo: {
+    width: 210,
+    height: 210,
+    marginBottom: 0,
+    marginTop: -52.5, // Crop 25% from top (210 * 0.25 = 52.5)
+    marginBottom: -52.5, // Crop 25% from bottom (210 * 0.25 = 52.5)
+    overflow: 'hidden',
+  },
+  appSubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    opacity: 0.8,
+    fontWeight: '500',
+    marginTop: -5,
+  },
   // Hero Banner Styles
   heroBanner: {
     marginBottom: 32,
@@ -375,7 +388,7 @@ const styles = StyleSheet.create({
   },
   heroButton: {
     borderRadius: 28,
-    shadowColor: '#00D4FF',
+    shadowColor: '#FF6A3D',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 20,

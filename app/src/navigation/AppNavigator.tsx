@@ -41,9 +41,9 @@ export const AppNavigator = () => {
         initialRouteName="MainTabs"
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#1a1a1a',
+            backgroundColor: '#121212',
           },
-          headerTintColor: '#ffffff',
+          headerTintColor: '#FFFFFF',
           headerTitleStyle: {
             fontWeight: 'bold',
           },

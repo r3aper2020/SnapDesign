@@ -1,25 +1,33 @@
 export const colors = {
-  // Light theme colors
+  // Light theme colors - ReVibe Brand
   light: {
-    // Primary colors
+    // Primary colors - ReVibe gradient colors
     primary: {
-      main: '#007AFF',
-      light: '#4DA3FF',
-      dark: '#0056CC',
+      main: '#FF6A3D', // Sunset Orange
+      light: '#FF8A5C',
+      dark: '#E55A2D',
       contrast: '#FFFFFF',
     },
     
-    // Secondary colors
+    // Secondary colors - Electric Blue
     secondary: {
-      main: '#5856D6',
-      light: '#7A79E0',
-      dark: '#3E3D99',
+      main: '#2F80ED', // Electric Blue
+      light: '#5A9FFF',
+      dark: '#1E5BB8',
       contrast: '#FFFFFF',
+    },
+    
+    // Accent colors
+    accent: {
+      pink: '#FF3E81', // Vivid Pink
+      purple: '#9B51E0', // Vibrant Purple
+      orange: '#FF6A3D', // Sunset Orange
+      blue: '#2F80ED', // Electric Blue
     },
     
     // Success colors
     success: {
-      main: '#34C759',
+      main: '#30D158',
       light: '#5CD675',
       dark: '#28A745',
       contrast: '#FFFFFF',
@@ -27,7 +35,7 @@ export const colors = {
     
     // Warning colors
     warning: {
-      main: '#FF9500',
+      main: '#FF9F0A',
       light: '#FFB340',
       dark: '#CC7700',
       contrast: '#FFFFFF',
@@ -35,7 +43,7 @@ export const colors = {
     
     // Error colors
     error: {
-      main: '#FF3B30',
+      main: '#FF453A',
       light: '#FF6B61',
       dark: '#CC2E26',
       contrast: '#FFFFFF',
@@ -90,30 +98,39 @@ export const colors = {
       dark: 'rgba(0, 0, 0, 0.25)',
     },
     
-    // Gradient colors for modern effects
+    // Gradient colors for ReVibe brand
     gradient: {
-      primary: ['#007AFF', '#5856D6'],
-      secondary: ['#4DA3FF', '#7A79E0'],
-      accent: ['#007AFF', '#0056CC', '#5856D6'],
+      primary: ['#FF6A3D', '#FF3E81', '#9B51E0'], // Orange → Pink → Purple
+      secondary: ['#2F80ED', '#9B51E0'], // Blue → Purple
+      accent: ['#FF6A3D', '#FF3E81'], // Orange → Pink
+      energy: ['#FF3E81', '#9B51E0', '#2F80ED'], // Pink → Purple → Blue
     },
   },
 
-  // Dark theme colors - Modern AI Assistant Design
+  // Dark theme colors - ReVibe Brand (Primary Theme)
   dark: {
-    // Primary colors - Vibrant gradient teal
+    // Primary colors - ReVibe gradient colors
     primary: {
-      main: '#00D4FF',
-      light: '#40E0FF',
-      dark: '#0099CC',
+      main: '#FF6A3D', // Sunset Orange
+      light: '#FF8A5C',
+      dark: '#E55A2D',
       contrast: '#FFFFFF',
     },
     
-    // Secondary colors - Purple accent
+    // Secondary colors - Electric Blue
     secondary: {
-      main: '#8B5CF6',
-      light: '#A78BFA',
-      dark: '#7C3AED',
+      main: '#2F80ED', // Electric Blue
+      light: '#5A9FFF',
+      dark: '#1E5BB8',
       contrast: '#FFFFFF',
+    },
+    
+    // Accent colors
+    accent: {
+      pink: '#FF3E81', // Vivid Pink
+      purple: '#9B51E0', // Vibrant Purple
+      orange: '#FF6A3D', // Sunset Orange
+      blue: '#2F80ED', // Electric Blue
     },
     
     // Success colors
@@ -140,60 +157,63 @@ export const colors = {
       contrast: '#FFFFFF',
     },
     
-    // Neutral colors
+    // Neutral colors - ReVibe dark theme
     neutral: {
       white: '#FFFFFF',
       black: '#000000',
       gray: {
-        50: '#111827',
-        100: '#1F2937',
-        200: '#374151',
-        300: '#4B5563',
-        400: '#6B7280',
-        500: '#9CA3AF',
-        600: '#D1D5DB',
-        700: '#E5E7EB',
-        800: '#F3F4F6',
-        900: '#F9FAFB',
+        50: '#121212', // Dark Charcoal
+        100: '#1E1E1E', // Deep Gray
+        200: '#2A2A2A',
+        300: '#3A3A3A',
+        400: '#4A4A4A',
+        500: '#6A6A6A',
+        600: '#8A8A8A',
+        700: '#A1A1A1', // Soft Gray
+        800: '#C1C1C1',
+        900: '#FFFFFF', // Pure White
       },
     },
     
-    // Background colors - Deep dark with subtle variations
+    // Background colors - ReVibe dark theme
     background: {
-      primary: '#0A0A0A',
-      secondary: '#1A1A1A',
+      primary: '#121212', // Dark Charcoal (main background)
+      secondary: '#1E1E1E', // Deep Gray (cards, surfaces)
       tertiary: '#2A2A2A',
       dark: '#000000',
     },
     
-    // Text colors - Clean whites and light grays
+    // Text colors - ReVibe dark theme
     text: {
-      primary: '#FFFFFF',
-      secondary: '#E5E5E5',
-      tertiary: '#B3B3B3',
-      inverse: '#000000',
-      disabled: '#666666',
+      primary: '#FFFFFF', // Pure White (primary text)
+      secondary: '#A1A1A1', // Soft Gray (secondary text)
+      tertiary: '#8A8A8A',
+      inverse: '#121212',
+      disabled: '#4A4A4A',
     },
     
-    // Border colors - Subtle grays
+    // Border colors - ReVibe dark theme
     border: {
-      light: '#333333',
-      medium: '#444444',
-      dark: '#555555',
+      light: '#2A2A2A',
+      medium: '#3A3A3A',
+      dark: '#4A4A4A',
     },
     
-    // Shadow colors - Deep shadows with subtle glow
+    // Shadow colors - ReVibe dark theme
     shadow: {
       light: 'rgba(0, 0, 0, 0.4)',
       medium: 'rgba(0, 0, 0, 0.6)',
       dark: 'rgba(0, 0, 0, 0.8)',
     },
     
-    // Gradient colors for modern effects
+    // Gradient colors for ReVibe brand
     gradient: {
-      primary: ['#00D4FF', '#8B5CF6'],
-      secondary: ['#40E0FF', '#A78BFA'],
-      accent: ['#00D4FF', '#0099CC', '#8B5CF6'],
+      primary: ['#FF6A3D', '#FF3E81', '#9B51E0'], // Orange → Pink → Purple
+      secondary: ['#2F80ED', '#9B51E0'], // Blue → Purple
+      accent: ['#FF6A3D', '#FF3E81'], // Orange → Pink
+      energy: ['#FF3E81', '#9B51E0', '#2F80ED'], // Pink → Purple → Blue
+      button: ['#FF6A3D', '#FF3E81', '#9B51E0'], // Primary button gradient
+      hover: ['#FF8A5C', '#FF5A91', '#B571F0'], // Brighter hover states
     },
   },
 } as const;

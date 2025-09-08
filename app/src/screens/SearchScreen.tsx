@@ -33,7 +33,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
-      const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery.trim())}&tag=snapdesign-20`;
+      const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery.trim())}&tag=revibe-20`;
       // In a real app, you'd open this URL or navigate to a search results screen
       console.log('Searching for:', searchQuery.trim());
     }
@@ -97,10 +97,10 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
           />
           
           <TouchableOpacity
-            style={[styles.searchButton, { backgroundColor: theme.colors.primary.main }]}
+            style={[styles.searchButton, { backgroundColor: theme.colors.secondary.main }]}
             onPress={handleSearch}
           >
-            <Text style={[styles.searchButtonText, { color: theme.colors.primary.contrast }]}>
+            <Text style={[styles.searchButtonText, { color: theme.colors.secondary.contrast }]}>
               Search Amazon
             </Text>
           </TouchableOpacity>
@@ -155,10 +155,10 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
           </View>
           
           <TouchableOpacity
-            style={[styles.quickActionButton, { backgroundColor: theme.colors.primary.main }]}
+            style={[styles.quickActionButton, { backgroundColor: theme.colors.accent.purple }]}
             onPress={handleBackToDesign}
           >
-            <Text style={[styles.quickActionText, { color: theme.colors.primary.contrast }]}>
+            <Text style={[styles.quickActionText, { color: theme.colors.text.primary }]}>
               Create New Design
             </Text>
           </TouchableOpacity>

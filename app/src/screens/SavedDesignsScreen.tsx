@@ -102,21 +102,27 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+      {/* Fixed Header */}
+      <View style={[styles.fixedHeader, { backgroundColor: theme.colors.background.primary }]}>
+        <Image 
+          source={require('../../assets/re-vibe.png')} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={[styles.title, { color: theme.colors.text.primary }]}>
+          Saved Designs
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
+          {savedDesigns.length} design{savedDesigns.length !== 1 ? 's' : ''} saved
+        </Text>
+      </View>
+      
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
-        <View style={styles.headerSection}>
-          <Text style={[styles.title, { color: theme.colors.text.primary }]}>
-            Saved Designs
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-            {savedDesigns.length} design{savedDesigns.length !== 1 ? 's' : ''} saved
-          </Text>
-        </View>
 
         {/* Designs Grid */}
         {savedDesigns.length > 0 ? (
@@ -154,10 +160,10 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
                 {/* Actions */}
                 <View style={styles.actionsContainer}>
                   <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: theme.colors.primary.main }]}
+                    style={[styles.actionButton, { backgroundColor: theme.colors.secondary.main }]}
                     onPress={() => handleViewDesign(design)}
                   >
-                    <Text style={[styles.actionButtonText, { color: theme.colors.primary.contrast }]}>
+                    <Text style={[styles.actionButtonText, { color: theme.colors.secondary.contrast }]}>
                       View
                     </Text>
                   </TouchableOpacity>
@@ -182,10 +188,10 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
               Create your first design to see it saved here
             </Text>
             <TouchableOpacity
-              style={[styles.createButton, { backgroundColor: theme.colors.primary.main }]}
+              style={[styles.createButton, { backgroundColor: theme.colors.accent.purple }]}
               onPress={() => navigation.navigate('Design')}
             >
-              <Text style={[styles.createButtonText, { color: theme.colors.primary.contrast }]}>
+              <Text style={[styles.createButtonText, { color: theme.colors.text.primary }]}>
                 Create Design
               </Text>
             </TouchableOpacity>
@@ -212,10 +218,21 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
   },
-  headerSection: {
+  // Fixed Header Section
+  fixedHeader: {
     alignItems: 'center',
-    marginBottom: 24,
-    paddingTop: 30,
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginTop: -30, // Crop 25% from top (120 * 0.25 = 30)
+    marginBottom: -28, // Crop 25% from bottom (120 * 0.25 = 30) + original 2 margin
+    overflow: 'hidden',
   },
   title: {
     fontSize: 28,
