@@ -368,8 +368,14 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+      {/* Background Image */}
+      <Image 
+        source={require('../../assets/background.png')} 
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
       {/* Fixed Header */}
-      <View style={[styles.fixedHeader, { backgroundColor: theme.colors.background.primary }]}>
+      <View style={[styles.fixedHeader, { backgroundColor: 'transparent' }]}>
         <Image 
           source={require('../../assets/re-vibe.png')} 
           style={styles.logo}
@@ -533,6 +539,15 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
   },
   keyboardAvoidingView: {
     flex: 1,
