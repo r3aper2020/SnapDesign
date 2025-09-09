@@ -10,10 +10,11 @@ import {
   Linking,
   Dimensions,
   StyleSheet,
-  Animated,
+  // Removed Animated import - no longer needed
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PinchGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
+// Removed gesture handler imports - no longer needed
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -54,16 +55,13 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   // Swipe comparison state
   const [isShowingOriginal, setIsShowingOriginal] = useState(false);
   
-  // Zoom state
-  const scale = useRef(new Animated.Value(1)).current;
-  const savedScale = useRef(1);
-  const [isZoomed, setIsZoomed] = useState(false);
+  // Modal state
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalImageType, setModalImageType] = useState<'original' | 'transformed'>('transformed');
   
-  // Pan state
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const savedTranslateX = useRef(0);
-  const savedTranslateY = useRef(0);
+  // Main image state (simplified - no zoom/pan)
+  
+  // Modal state (simplified - no zoom/pan)
   
   // Shopping list state
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
@@ -104,93 +102,23 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     setIsShowingOriginal(!isShowingOriginal);
   };
 
-  // Zoom gesture handlers
-  const onPinchGestureEvent = Animated.event(
-    [{ nativeEvent: { scale: scale } }],
-    { useNativeDriver: true }
-  );
-
-  const onPinchHandlerStateChange = (event: any) => {
-    if (event.nativeEvent.state === State.ACTIVE) {
-      // Gesture is active, allow zooming
-    } else if (event.nativeEvent.state === State.END) {
-      // Gesture ended, save the scale
-      savedScale.current = Math.max(1, Math.min(3, savedScale.current * event.nativeEvent.scale));
-      scale.setValue(savedScale.current);
-      
-      if (savedScale.current > 1) {
-        setIsZoomed(true);
-      } else {
-        setIsZoomed(false);
-      }
-    }
+  // Modal functions
+  const openModal = (imageType: 'original' | 'transformed' = 'transformed') => {
+    setModalImageType(imageType);
+    setIsModalVisible(true);
   };
 
-  // Pan gesture handlers with proper offset management and real-time constraints
-  const onPanGestureEvent = (event: any) => {
-    const { translationX: panX, translationY: panY } = event.nativeEvent;
-    
-    // Calculate bounds based on current scale
-    const currentScale = savedScale.current;
-    const containerWidth = width - 88;
-    const containerHeight = 280;
-    const scaledWidth = containerWidth * currentScale;
-    const scaledHeight = containerHeight * currentScale;
-    const overflowX = (scaledWidth - containerWidth) / 2;
-    const overflowY = (scaledHeight - containerHeight) / 2;
-    
-    // Calculate new position with constraints
-    const newTranslateX = savedTranslateX.current + panX;
-    const newTranslateY = savedTranslateY.current + panY;
-    
-    const constrainedX = Math.max(-overflowX, Math.min(overflowX, newTranslateX));
-    const constrainedY = Math.max(-overflowY, Math.min(overflowY, newTranslateY));
-    
-    // Set the constrained values
-    translateX.setValue(constrainedX);
-    translateY.setValue(constrainedY);
+  const closeModal = () => {
+    setIsModalVisible(false);
   };
 
-  const onPanHandlerStateChange = (event: any) => {
-    if (event.nativeEvent.state === State.ACTIVE) {
-      // Gesture started - no need to set offsets since we're handling it directly
-    } else if (event.nativeEvent.state === State.END) {
-      // Gesture ended, save the current constrained position
-      const { translationX: panX, translationY: panY } = event.nativeEvent;
-      
-      // Calculate bounds based on current scale
-      const currentScale = savedScale.current;
-      const containerWidth = width - 88;
-      const containerHeight = 280;
-      const scaledWidth = containerWidth * currentScale;
-      const scaledHeight = containerHeight * currentScale;
-      const overflowX = (scaledWidth - containerWidth) / 2;
-      const overflowY = (scaledHeight - containerHeight) / 2;
-      
-      // Calculate new position
-      const newTranslateX = savedTranslateX.current + panX;
-      const newTranslateY = savedTranslateY.current + panY;
-      
-      // Apply constraints
-      const constrainedX = Math.max(-overflowX, Math.min(overflowX, newTranslateX));
-      const constrainedY = Math.max(-overflowY, Math.min(overflowY, newTranslateY));
-      
-      // Save the constrained position
-      savedTranslateX.current = constrainedX;
-      savedTranslateY.current = constrainedY;
-    }
+  const toggleModalImage = () => {
+    setModalImageType(modalImageType === 'original' ? 'transformed' : 'original');
   };
 
-  // Reset zoom and pan
-  const resetZoom = () => {
-    savedScale.current = 1;
-    savedTranslateX.current = 0;
-    savedTranslateY.current = 0;
-    scale.setValue(1);
-    translateX.setValue(0);
-    translateY.setValue(0);
-    setIsZoomed(false);
-  };
+  // Main image functions (simplified - no zoom/pan)
+
+  // Modal functions (simplified - no zoom/pan)
 
   // Shopping list functions
   const toggleCheckbox = async (index: number) => {
@@ -260,80 +188,54 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             </Text>
             <Text style={[styles.cardSubtitle, { color: theme.colors.text.secondary }]}>
               {isShowingOriginal ? 'Your original photo' : 'AI-enhanced design based on your theme'}
-            </Text>
-            <Text style={[styles.swipeHint, { color: theme.colors.text.secondary }]}>
-              Tap to compare • Pinch to zoom • Drag when zoomed
-            </Text>
+            </Text>            
           </View>
           
-          <View style={styles.imageContainer}>
-            <PanGestureHandler
-              onGestureEvent={onPanGestureEvent}
-              onHandlerStateChange={onPanHandlerStateChange}
-              enabled={isZoomed}
-            >
-              <Animated.View>
-                <PinchGestureHandler
-                  onGestureEvent={onPinchGestureEvent}
-                  onHandlerStateChange={onPinchHandlerStateChange}
-                >
-                  <Animated.View style={[styles.imageWrapper, { 
-                    transform: [
-                      { scale },
-                      { translateX },
-                      { translateY }
-                    ] 
-                  }]}>
-                    <TouchableOpacity onPress={toggleImage} activeOpacity={0.9}>
-                      {isShowingOriginal ? (
-                        // Show Original Image
-                        originalImage ? (
-                          <Image 
-                            source={{ uri: `data:image/jpeg;base64,${originalImage}` }} 
-                            style={styles.generatedImage} 
-                            fadeDuration={0}
-                          />
-                        ) : (
-                          <View style={[styles.noImageContainer, { backgroundColor: theme.colors.background.primary }]}>
-                            <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
-                              No original image available
-                            </Text>
-                          </View>
-                        )
-                      ) : (
-                        // Show Generated Image
-                        generatedImage ? (
-                          <Image 
-                            source={{ uri: `data:image/jpeg;base64,${generatedImage}` }} 
-                            style={styles.generatedImage} 
-                            fadeDuration={0}
-                          />
-                        ) : (
-                          <View style={[styles.noImageContainer, { backgroundColor: theme.colors.background.primary }]}>
-                            <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
-                              No image available
-                            </Text>
-                          </View>
-                        )
-                      )}
-                    </TouchableOpacity>
-                  </Animated.View>
-                </PinchGestureHandler>
-              </Animated.View>
-            </PanGestureHandler>
-            
-            {/* Reset Zoom Button */}
-            {isZoomed && (
-              <TouchableOpacity
-                style={[styles.resetZoomButton, { backgroundColor: theme.colors.secondary.main }]}
-                onPress={resetZoom}
-              >
-                <Text style={[styles.resetZoomText, { color: theme.colors.secondary.contrast }]}>
-                  Reset Zoom
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
+            <View style={styles.imageContainer}>
+             <TouchableOpacity onPress={toggleImage} activeOpacity={0.9}>
+               {isShowingOriginal ? (
+                 // Show Original Image
+                 originalImage ? (
+                   <Image 
+                     source={{ uri: `data:image/jpeg;base64,${originalImage}` }} 
+                     style={styles.generatedImage} 
+                     fadeDuration={0}
+                   />
+                 ) : (
+                   <View style={[styles.noImageContainer, { backgroundColor: theme.colors.background.primary }]}>
+                     <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
+                       No original image available
+                     </Text>
+                   </View>
+                 )
+               ) : (
+                 // Show Generated Image
+                 generatedImage ? (
+                   <Image 
+                     source={{ uri: `data:image/jpeg;base64,${generatedImage}` }} 
+                     style={styles.generatedImage} 
+                     fadeDuration={0}
+                   />
+                 ) : (
+                   <View style={[styles.noImageContainer, { backgroundColor: theme.colors.background.primary }]}>
+                     <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
+                       No image available
+                     </Text>
+                   </View>
+                 )
+               )}
+             </TouchableOpacity>
+             
+             {/* Expand Button */}
+             <TouchableOpacity
+               style={[styles.expandButton, { backgroundColor: theme.colors.primary.main }]}
+               onPress={() => openModal(isShowingOriginal ? 'original' : 'transformed')}
+             >
+               <Text style={[styles.expandButtonText, { color: theme.colors.primary.contrast }]}>
+                 ⛶
+               </Text>
+             </TouchableOpacity>
+            </View>
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
@@ -472,6 +374,78 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
           </View>
         )}
       </ScrollView>
+
+      {/* Full-Screen Image Modal */}
+      <Modal
+        visible={isModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalContainer}>
+          {/* Modal Header */}
+          <View style={[styles.modalHeader, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={closeModal}
+            >
+              <Text style={styles.modalCloseText}>✕</Text>
+            </TouchableOpacity>
+            
+            <View style={styles.modalTitleContainer}>
+              <Text style={styles.modalTitle}>
+                {modalImageType === 'original' ? 'Original Image' : 'Transformed Image'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Modal Image - Tap to Toggle */}
+          <TouchableOpacity 
+            style={styles.modalImageContainer}
+            onPress={toggleModalImage}
+            activeOpacity={0.9}
+          >
+            {modalImageType === 'original' ? (
+              originalImage ? (
+                <Image 
+                  source={{ uri: `data:image/jpeg;base64,${originalImage}` }} 
+                  style={styles.modalImage} 
+                  fadeDuration={0}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={[styles.modalNoImage, { backgroundColor: theme.colors.background.primary }]}>
+                  <Text style={[styles.modalNoImageText, { color: theme.colors.text.secondary }]}>
+                    No original image available
+                  </Text>
+                </View>
+              )
+            ) : (
+              generatedImage ? (
+                <Image 
+                  source={{ uri: `data:image/jpeg;base64,${generatedImage}` }} 
+                  style={styles.modalImage} 
+                  fadeDuration={0}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={[styles.modalNoImage, { backgroundColor: theme.colors.background.primary }]}>
+                  <Text style={[styles.modalNoImageText, { color: theme.colors.text.secondary }]}>
+                    No image available
+                  </Text>
+                </View>
+              )
+            )}
+          </TouchableOpacity>
+
+          {/* Modal Controls */}
+          <View style={[styles.modalControls, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+            <Text style={styles.modalInstructions}>
+              Tap the image to switch between original and transformed
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -776,5 +750,101 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.7,
     maxWidth: width - 120,
+  },
+  // Expand Button Styles
+  expandButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  expandButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+  },
+  modalCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  modalTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalImage: {
+    width: width,
+    height: Dimensions.get('window').height - 200,
+  },
+  modalNoImage: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalNoImageText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  modalControls: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  modalControlButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  modalControlText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalInstructions: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    flex: 1,
+    marginLeft: 16,
   },
 });

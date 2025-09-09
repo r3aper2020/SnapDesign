@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,22 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 const { width } = Dimensions.get('window');
+
+// Sample images for cycling - add any images to the Samples folder and they'll automatically appear
+const sampleImages = [
+  require('../../assets/Samples/Christmas.png'),
+  require('../../assets/Samples/Holloween.png'),
+  require('../../assets/Samples/ThanksGiving.png'),
+  require('../../assets/Samples/BirthDay.png'),
+  require('../../assets/Samples/AccentWall.png'),
+  require('../../assets/Samples/FootballParty.png'),
+  // Add more images here as you drop them into the Samples folder
+  // require('../../assets/Samples/YourNewImage.png'),
+];
+
+// Generic content that stays the same
+const heroTitle = 'ReVibe your Space';
+const heroDescription = 'Transform any space with AI-powered creativity';
 
 // Professional Icon Components
 const CameraIcon = ({ size = 24, color = '#666' }) => (
@@ -159,8 +175,20 @@ interface HomeScreenProps {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
+  
+  // Image cycling state
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+  // Auto-cycle through images every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) => 
+        (prevIndex + 1) % sampleImages.length
+      );
+    }, 3000);
 
+    return () => clearInterval(interval);
+  }, []);
 
   const handleDesignWithTheme = () => {
     navigation.navigate('Design');
@@ -190,7 +218,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </Text>
         </View>
 
-        {/* Hero Banner */}
+        {/* Hero Banner with Cycling Images */}
         <View style={styles.heroBanner}>
           <LinearGradient
             colors={theme.colors.gradient.primary}
@@ -199,13 +227,39 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             style={styles.heroGradient}
           >
             <View style={styles.heroContent}>
-              <Text style={styles.heroEmoji}>✨</Text>
+              {/* Sample Image Display */}
+              <View style={styles.sampleImageContainer}>
+                <Image 
+                  source={sampleImages[currentImageIndex]} 
+                  style={styles.sampleImage}
+                  resizeMode="cover"
+                />
+              </View>
+              
               <Text style={[styles.heroTitle, { color: theme.colors.text.primary }]}>
-                Transform Any Space
+                {heroTitle}
               </Text>
               <Text style={[styles.heroSubtitle, { color: theme.colors.text.primary }]}>
-                Create stunning designs with AI-powered creativity
+                {heroDescription}
               </Text>
+              
+              {/* Image indicators */}
+              <View style={styles.imageIndicators}>
+                {sampleImages.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.indicator,
+                      {
+                        backgroundColor: index === currentImageIndex 
+                          ? 'rgba(255, 255, 255, 0.9)' 
+                          : 'rgba(255, 255, 255, 0.3)'
+                      }
+                    ]}
+                  />
+                ))}
+              </View>
+              
               <TouchableOpacity
                 style={styles.heroButton}
                 onPress={handleDesignWithTheme}
@@ -353,7 +407,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 210,
     height: 210,
-    marginBottom: 0,
     marginTop: -52.5, // Crop 25% from top (210 * 0.25 = 52.5)
     marginBottom: -52.5, // Crop 25% from bottom (210 * 0.25 = 52.5)
     overflow: 'hidden',
@@ -377,29 +430,53 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   heroGradient: {
-    padding: 32,
-    paddingTop: 40,
+    padding: 16,
+    paddingTop: 24,
   },
   heroContent: {
     alignItems: 'center',
   },
-  heroEmoji: {
-    fontSize: 48,
-    marginBottom: 16,
+  // Sample Image Styles
+  sampleImageContainer: {
+    width: 280,
+    height: 280,
+    borderRadius: 20,
+    marginBottom: 12,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  sampleImage: {
+    width: '100%',
+    height: '100%',
+  },
+  // Image Indicators
+  imageIndicators: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    gap: 8,
+  },
+  indicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   heroTitle: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
     letterSpacing: -0.8,
   },
   heroSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 20,
     opacity: 0.8,
-    marginBottom: 24,
+    marginBottom: 12,
   },
   heroButton: {
     borderRadius: 28,
