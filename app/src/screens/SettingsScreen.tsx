@@ -187,17 +187,19 @@ export const SettingsScreen: React.FC = () => {
       />
       {/* Fixed Header */}
       <View style={[styles.fixedHeader, { backgroundColor: 'transparent' }]}>
-        <Image 
-          source={require('../../assets/re-vibe.png')} 
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={[styles.title, { color: theme.colors.text.primary }]}>
-          Settings
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-          Customize your app experience
-        </Text>
+        <View style={styles.headerContent}>
+          <Image 
+            source={require('../../assets/re-vibe.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={[styles.title, { color: theme.colors.text.primary }]}>
+            Settings
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
+            Customize your app experience
+          </Text>
+        </View>
       </View>
       
       <ScrollView 
@@ -394,6 +396,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerContent: {
+    alignItems: 'center',
+    paddingTop: 20,
   },
   logo: {
     width: 120,

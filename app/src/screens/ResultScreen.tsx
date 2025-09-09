@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { PinchGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -214,12 +215,29 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header Section */}
-        <View style={styles.headerSection}>
+      {/* Background Image */}
+      <Image 
+        source={require('../../assets/background.png')} 
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+      {/* Fixed Header */}
+      <View style={[styles.fixedHeader, { backgroundColor: 'transparent' }]}>
+        {/* Back Button */}
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={[styles.backButtonText, { color: theme.colors.text.primary }]}>‹</Text>
+        </TouchableOpacity>
+        
+        {/* Logo and Title */}
+        <View style={styles.headerContent}>
+          <Image 
+            source={require('../../assets/re-vibe.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={[styles.title, { color: theme.colors.text.primary }]}>
             Your Design
           </Text>
@@ -227,6 +245,12 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             Here's your transformed space
           </Text>
         </View>
+      </View>
+      
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* Generated Image Card */}
         <View style={[styles.card, { backgroundColor: theme.colors.background.secondary }]}>
@@ -404,18 +428,31 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                   {/* Amazon Button */}
                   {product.amazonLink && (
                     <TouchableOpacity
-                      style={[styles.amazonButton, { 
-                        backgroundColor: isChecked ? theme.colors.background.primary : theme.colors.primary.main,
-                        borderColor: theme.colors.primary.main,
-                        borderWidth: 1
-                      }]}
+                      style={styles.amazonButton}
                       onPress={() => openAmazonLink(product.amazonLink!)}
                     >
-                      <Text style={[styles.amazonButtonText, { 
-                        color: isChecked ? theme.colors.primary.main : theme.colors.primary.contrast 
-                      }]}>
-                        {isChecked ? 'Purchased' : 'Buy Now'}
-                      </Text>
+                      {isChecked ? (
+                        <View style={[styles.amazonButtonContent, { 
+                          backgroundColor: theme.colors.background.primary,
+                          borderColor: theme.colors.primary.main,
+                          borderWidth: 1
+                        }]}>
+                          <Text style={[styles.amazonButtonText, { color: theme.colors.primary.main }]}>
+                            Purchased
+                          </Text>
+                        </View>
+                      ) : (
+                        <LinearGradient
+                          colors={theme.colors.gradient.primary}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.amazonButtonContent}
+                        >
+                          <Text style={[styles.amazonButtonText, { color: theme.colors.text.primary }]}>
+                            Buy Now
+                          </Text>
+                        </LinearGradient>
+                      )}
                     </TouchableOpacity>
                   )}
                 </View>
@@ -443,14 +480,65 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 32,
+    flexGrow: 1,
   },
-  headerSection: {
+  
+  // Fixed Header Section
+  fixedHeader: {
     alignItems: 'center',
-    marginBottom: 20,
-    paddingTop: 30,
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50, // Adjusted to align with logo center
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1001,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  backButtonText: {
+    fontSize: 24,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    marginLeft: -1,
+  },
+  headerContent: {
+    alignItems: 'center',
+    paddingTop: 20,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginTop: -30, // Crop 25% from top (120 * 0.25 = 30)
+    marginBottom: -28, // Crop 25% from bottom (120 * 0.25 = 30) + original 2 margin
+    overflow: 'hidden',
   },
   title: {
     fontSize: 28,
@@ -659,6 +747,10 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   amazonButton: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  amazonButtonContent: {
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,

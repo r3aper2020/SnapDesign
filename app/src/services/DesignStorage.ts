@@ -42,11 +42,28 @@ const DB_NAME = 'designs.db';
 
 class DesignStorage {
   private db: SQLite.SQLiteDatabase | null = null;
+  private initPromise: Promise<void> | null = null;
 
   private async initDatabase(): Promise<void> {
     if (this.db) return;
     
-    this.db = await SQLite.openDatabaseAsync(DB_NAME);
+    // If initialization is already in progress, wait for it
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+    
+    this.initPromise = this._doInit();
+    return this.initPromise;
+  }
+
+  private async _doInit(): Promise<void> {
+    try {
+      this.db = await SQLite.openDatabaseAsync(DB_NAME);
+    } catch (error) {
+      console.error('❌ Error opening database:', error);
+      this.initPromise = null; // Reset so we can try again
+      throw error;
+    }
     
     // Create tables if they don't exist
     await this.db.execAsync(`
@@ -76,6 +93,8 @@ class DesignStorage {
       // Column already exists, ignore the error
       console.log('TokenUsage column already exists or migration not needed');
     }
+    
+    this.initPromise = null; // Reset after successful initialization
   }
 
   // Save a new design
@@ -118,7 +137,7 @@ class DesignStorage {
     }
   }
 
-  // Get all saved designs
+  // Get all saved designs (for backward compatibility)
   async getSavedDesigns(): Promise<SavedDesign[]> {
     try {
       await this.initDatabase();
@@ -151,6 +170,73 @@ class DesignStorage {
     } catch (error) {
       console.error('❌ Error loading designs:', error);
       return [];
+    }
+  }
+
+  // Get saved designs with pagination for lazy loading
+  async getSavedDesignsPaginated(limit: number = 6, offset: number = 0): Promise<{
+    designs: SavedDesign[];
+    hasMore: boolean;
+    total: number;
+  }> {
+    try {
+      await this.initDatabase();
+      
+      // Get paginated results first (faster)
+      const result = await this.db!.getAllAsync(
+        `SELECT * FROM designs ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
+        [limit + 1, offset] // Get one extra to check if there are more
+      );
+
+      const designs = result.slice(0, limit).map((row: any) => ({
+        id: row.id,
+        timestamp: row.timestamp,
+        description: row.description,
+        originalImage: row.originalImage,
+        generatedImage: row.generatedImage,
+        products: JSON.parse(row.products),
+        tokenUsage: row.tokenUsage ? JSON.parse(row.tokenUsage) : undefined
+      }));
+
+      const hasMore = result.length > limit;
+      
+      // Only get total count if we need it (for first load or when hasMore is false)
+      let total = 0;
+      if (offset === 0 || !hasMore) {
+        const countResult = await this.db!.getFirstAsync(
+          `SELECT COUNT(*) as count FROM designs`
+        );
+        total = countResult?.count || 0;
+      } else {
+        // Estimate total based on current data
+        total = offset + designs.length + (hasMore ? 1 : 0);
+      }
+
+      console.log('📚 Loaded paginated designs from database:', {
+        loaded: designs.length,
+        offset,
+        total,
+        hasMore,
+        designs: designs.map(d => ({
+          id: d.id,
+          description: d.description,
+          productsCount: d.products.length,
+          timestamp: new Date(d.timestamp).toLocaleString()
+        }))
+      });
+
+      return {
+        designs,
+        hasMore,
+        total
+      };
+    } catch (error) {
+      console.error('❌ Error loading paginated designs:', error);
+      return {
+        designs: [],
+        hasMore: false,
+        total: 0
+      };
     }
   }
 

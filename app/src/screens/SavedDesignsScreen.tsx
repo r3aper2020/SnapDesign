@@ -10,6 +10,7 @@ import {
   Dimensions,
   Alert,
   RefreshControl,
+  FlatList,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -20,6 +21,91 @@ const { width } = Dimensions.get('window');
 
 type SavedDesignsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SavedDesigns'>;
 
+// Skeleton Loading Component
+const DesignCardSkeleton: React.FC<{ theme: any }> = ({ theme }) => (
+  <View style={[styles.designCard, { backgroundColor: theme.colors.background.secondary }]}>
+    <View style={[styles.skeletonImage, { backgroundColor: theme.colors.background.primary }]} />
+    <View style={styles.designInfo}>
+      <View style={[styles.skeletonText, { backgroundColor: theme.colors.background.primary }]} />
+      <View style={[styles.skeletonTextSmall, { backgroundColor: theme.colors.background.primary }]} />
+      <View style={[styles.skeletonTextSmall, { backgroundColor: theme.colors.background.primary }]} />
+    </View>
+    <View style={styles.actionsContainer}>
+      <View style={[styles.skeletonButton, { backgroundColor: theme.colors.background.primary }]} />
+      <View style={[styles.skeletonButton, { backgroundColor: theme.colors.background.primary }]} />
+    </View>
+  </View>
+);
+
+// Design Card Component for lazy loading
+const DesignCard: React.FC<{
+  design: SavedDesign;
+  theme: any;
+  onViewDesign: (design: SavedDesign) => void;
+  onDeleteDesign: (design: SavedDesign) => void;
+}> = ({ design, theme, onViewDesign, onDeleteDesign }) => {
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  return (
+    <View style={[styles.designCard, { backgroundColor: theme.colors.background.secondary }]}>
+      {/* Design Image */}
+      <TouchableOpacity 
+        style={styles.imageContainer}
+        onPress={() => onViewDesign(design)}
+      >
+        <Image 
+          source={{ uri: `data:image/jpeg;base64,${design.generatedImage}` }} 
+          style={styles.designImage} 
+          resizeMode="cover"
+        />
+        <View style={styles.imageOverlay}>
+          <Text style={styles.viewText}>View</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Design Info */}
+      <View style={styles.designInfo}>
+        <Text style={[styles.designDescription, { color: theme.colors.text.primary }]} numberOfLines={2}>
+          {design.description}
+        </Text>
+        <Text style={[styles.designDate, { color: theme.colors.text.secondary }]}>
+          {formatDate(design.timestamp)}
+        </Text>
+        <Text style={[styles.designProducts, { color: theme.colors.text.secondary }]}>
+          {design.products.length} item{design.products.length !== 1 ? 's' : ''}
+        </Text>
+      </View>
+
+      {/* Actions */}
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: theme.colors.secondary.main }]}
+          onPress={() => onViewDesign(design)}
+        >
+          <Text style={[styles.actionButtonText, { color: theme.colors.secondary.contrast }]}>
+            View
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton, { borderColor: theme.colors.text.secondary }]}
+          onPress={() => onDeleteDesign(design)}
+        >
+          <Text style={[styles.deleteButtonText, { color: theme.colors.text.secondary }]}>
+            Delete
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
 interface SavedDesignsScreenProps {
   navigation: SavedDesignsScreenNavigationProp;
 }
@@ -29,28 +115,51 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
   const [savedDesigns, setSavedDesigns] = useState<SavedDesign[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [total, setTotal] = useState(0);
+  
+  const ITEMS_PER_PAGE = 6; // Smaller initial load for faster response
 
-  const loadDesigns = useCallback(async () => {
+  const loadDesigns = useCallback(async (reset: boolean = false) => {
     try {
-      const designs = await designStorage.getSavedDesigns();
-      setSavedDesigns(designs);
+      const offset = reset ? 0 : savedDesigns.length;
+      const result = await designStorage.getSavedDesignsPaginated(ITEMS_PER_PAGE, offset);
+      
+      if (reset) {
+        setSavedDesigns(result.designs);
+      } else {
+        setSavedDesigns(prev => [...prev, ...result.designs]);
+      }
+      
+      setHasMore(result.hasMore);
+      setTotal(result.total);
     } catch (error) {
       console.error('Error loading designs:', error);
       Alert.alert('Error', 'Failed to load saved designs');
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
-  }, []);
+  }, [savedDesigns.length]);
 
   useEffect(() => {
-    loadDesigns();
-  }, [loadDesigns]);
+    loadDesigns(true);
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadDesigns();
+    setHasMore(true);
+    loadDesigns(true);
   }, [loadDesigns]);
+
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore) {
+      setLoadingMore(true);
+      loadDesigns(false);
+    }
+  }, [loadingMore, hasMore, loadDesigns]);
 
   const handleDeleteDesign = (designId: string) => {
     Alert.alert(
@@ -88,17 +197,7 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
-        <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: theme.colors.text.secondary }]}>
-            Loading saved designs...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Remove the full-screen loading state - show UI immediately
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
@@ -110,100 +209,95 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
       />
       {/* Fixed Header */}
       <View style={[styles.fixedHeader, { backgroundColor: 'transparent' }]}>
-        <Image 
-          source={require('../../assets/re-vibe.png')} 
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={[styles.title, { color: theme.colors.text.primary }]}>
-          Saved Designs
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-          {savedDesigns.length} design{savedDesigns.length !== 1 ? 's' : ''} saved
-        </Text>
+        <View style={styles.headerContent}>
+          <Image 
+            source={require('../../assets/re-vibe.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={[styles.title, { color: theme.colors.text.primary }]}>
+            Saved Designs
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
+            {loading ? 'Loading designs...' : total > 0 ? `${savedDesigns.length} of ${total} designs` : 'No designs saved'}
+          </Text>
+        </View>
       </View>
       
-      <ScrollView 
+      <FlatList
+        data={loading && savedDesigns.length === 0 ? Array(6).fill(null) : savedDesigns}
+        keyExtractor={(item, index) => item?.id || `skeleton-${index}`}
+        numColumns={2}
         contentContainerStyle={styles.scrollContent}
+        columnWrapperStyle={styles.row}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-      >
-
-        {/* Designs Grid */}
-        {savedDesigns.length > 0 ? (
-          <View style={styles.designsGrid}>
-            {savedDesigns.map((design) => (
-              <View key={design.id} style={[styles.designCard, { backgroundColor: theme.colors.background.secondary }]}>
-                {/* Design Image */}
-                <TouchableOpacity 
-                  style={styles.imageContainer}
-                  onPress={() => handleViewDesign(design)}
-                >
-                  <Image 
-                    source={{ uri: `data:image/jpeg;base64,${design.generatedImage}` }} 
-                    style={styles.designImage} 
-                    resizeMode="cover"
-                  />
-                  <View style={styles.imageOverlay}>
-                    <Text style={styles.viewText}>View</Text>
-                  </View>
-                </TouchableOpacity>
-
-                {/* Design Info */}
-                <View style={styles.designInfo}>
-                  <Text style={[styles.designDescription, { color: theme.colors.text.primary }]} numberOfLines={2}>
-                    {design.description}
-                  </Text>
-                  <Text style={[styles.designDate, { color: theme.colors.text.secondary }]}>
-                    {formatDate(design.timestamp)}
-                  </Text>
-                  <Text style={[styles.designProducts, { color: theme.colors.text.secondary }]}>
-                    {design.products.length} item{design.products.length !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-
-                {/* Actions */}
-                <View style={styles.actionsContainer}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: theme.colors.secondary.main }]}
-                    onPress={() => handleViewDesign(design)}
-                  >
-                    <Text style={[styles.actionButtonText, { color: theme.colors.secondary.contrast }]}>
-                      View
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton, { borderColor: theme.colors.text.secondary }]}
-                    onPress={() => handleDeleteDesign(design.id)}
-                  >
-                    <Text style={[styles.deleteButtonText, { color: theme.colors.text.secondary }]}>
-                      Delete
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyTitle, { color: theme.colors.text.primary }]}>
-              No Saved Designs
-            </Text>
-            <Text style={[styles.emptySubtitle, { color: theme.colors.text.secondary }]}>
-              Create your first design to see it saved here
-            </Text>
-            <TouchableOpacity
-              style={[styles.createButton, { backgroundColor: theme.colors.accent.purple }]}
-              onPress={() => navigation.navigate('Design')}
-            >
-              <Text style={[styles.createButtonText, { color: theme.colors.text.primary }]}>
-                Create Design
+        renderItem={({ item: design, index }) => 
+          loading && !design ? (
+            <DesignCardSkeleton key={`skeleton-${index}`} theme={theme} />
+          ) : (
+            <DesignCard
+              design={design}
+              theme={theme}
+              onViewDesign={handleViewDesign}
+              onDeleteDesign={(design) => handleDeleteDesign(design.id)}
+            />
+          )
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyTitle, { color: theme.colors.text.primary }]}>
+                No Saved Designs
               </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
+              <Text style={[styles.emptySubtitle, { color: theme.colors.text.secondary }]}>
+                Create your first design to see it saved here
+              </Text>
+              <TouchableOpacity
+                style={[styles.createButton, { backgroundColor: theme.colors.accent.purple }]}
+                onPress={() => navigation.navigate('Design')}
+              >
+                <Text style={[styles.createButtonText, { color: theme.colors.text.primary }]}>
+                  Create Design
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.loadingMoreContainer}>
+              <Text style={[styles.loadingMoreText, { color: theme.colors.text.secondary }]}>
+                Loading more designs...
+              </Text>
+            </View>
+          ) : hasMore && savedDesigns.length > 0 ? (
+            <View style={styles.loadMoreContainer}>
+              <TouchableOpacity
+                style={[styles.loadMoreButton, { backgroundColor: theme.colors.background.secondary }]}
+                onPress={loadMore}
+              >
+                <Text style={[styles.loadMoreText, { color: theme.colors.text.primary }]}>
+                  Load More
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={6}
+        maxToRenderPerBatch={4}
+        windowSize={10}
+        removeClippedSubviews={true}
+        getItemLayout={(data, index) => ({
+          length: 280, // Approximate height of each card
+          offset: 280 * Math.floor(index / 2),
+          index,
+        })}
+      />
     </SafeAreaView>
   );
 };
@@ -225,6 +319,10 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  row: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -241,6 +339,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerContent: {
+    alignItems: 'center',
+    paddingTop: 20,
   },
   logo: {
     width: 120,
@@ -261,11 +363,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     opacity: 0.8,
-  },
-  designsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
   },
   designCard: {
     width: (width - 48) / 2,
@@ -367,5 +464,58 @@ const styles = StyleSheet.create({
   createButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Loading More Styles
+  loadingMoreContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadingMoreText: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  loadMoreContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadMoreButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Skeleton Loading Styles
+  skeletonImage: {
+    height: 120,
+    borderRadius: 8,
+    opacity: 0.3,
+  },
+  skeletonText: {
+    height: 16,
+    borderRadius: 4,
+    marginBottom: 8,
+    opacity: 0.3,
+  },
+  skeletonTextSmall: {
+    height: 12,
+    borderRadius: 4,
+    marginBottom: 4,
+    width: '60%',
+    opacity: 0.3,
+  },
+  skeletonButton: {
+    height: 32,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 4,
+    opacity: 0.3,
   },
 });

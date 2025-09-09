@@ -62,7 +62,7 @@ export const AppNavigator = () => {
         <Stack.Screen 
           name="Result" 
           component={ResultScreen} 
-          options={{ title: 'Your Design' }}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>
