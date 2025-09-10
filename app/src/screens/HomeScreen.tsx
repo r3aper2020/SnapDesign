@@ -279,40 +279,32 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </LinearGradient>
         </View>
 
-        {/* Featured Categories */}
-        <View style={styles.categoriesSection}>
+        {/* This Month's Popular Theme */}
+        <View style={styles.themeSection}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
-            Popular Design Styles
+            This Month's Popular Design Theme
           </Text>
           
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesScroll}
+          <TouchableOpacity
+            style={[styles.themeCard, { backgroundColor: theme.colors.background.secondary }]}
+            onPress={handleDesignWithTheme}
           >
-            {[
-              { emoji: '🏠', name: 'Modern', description: 'Clean & minimal' },
-              { emoji: '🌿', name: 'Bohemian', description: 'Natural & eclectic' },
-              { emoji: '🏛️', name: 'Classic', description: 'Timeless elegance' },
-              { emoji: '⚡', name: 'Industrial', description: 'Raw & urban' },
-              { emoji: '🌸', name: 'Scandinavian', description: 'Cozy & bright' },
-              { emoji: '🌴', name: 'Tropical', description: 'Vibrant & lush' }
-            ].map((category, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[styles.categoryCard, { backgroundColor: theme.colors.background.secondary }]}
-                onPress={handleDesignWithTheme}
-              >
-                <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                <Text style={[styles.categoryName, { color: theme.colors.text.primary }]}>
-                  {category.name}
-                </Text>
-                <Text style={[styles.categoryDescription, { color: theme.colors.text.secondary }]}>
-                  {category.description}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+            <View style={styles.themeImageContainer}>
+              <Image 
+                source={require('../../assets/Themes/September.png')} 
+                style={styles.themeImage}
+                resizeMode="cover"
+              />
+            </View>
+            <View style={styles.themeContent}>
+              <Text style={[styles.themeTitle, { color: theme.colors.text.primary }]}>
+                September Theme
+              </Text>
+              <Text style={[styles.themeDescription, { color: theme.colors.text.secondary }]}>
+                Get ready for the school year with organized, inspiring study spaces
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
 
@@ -496,39 +488,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  // Categories Section
-  categoriesSection: {
+  // Theme Section
+  themeSection: {
     marginBottom: 40,
   },
-  categoriesScroll: {
-    paddingHorizontal: 4,
-  },
-  categoryCard: {
-    width: 140,
+  themeCard: {
     borderRadius: 24,
     padding: 20,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 8,
   },
-  categoryEmoji: {
-    fontSize: 32,
-    marginBottom: 12,
+  themeImageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginRight: 16,
   },
-  categoryName: {
-    fontSize: 16,
+  themeImage: {
+    width: '100%',
+    height: '100%',
+  },
+  themeContent: {
+    flex: 1,
+  },
+  themeTitle: {
+    fontSize: 18,
     fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  categoryDescription: {
-    fontSize: 12,
-    textAlign: 'center',
-    opacity: 0.7,
+  themeDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.8,
   },
   sectionTitle: {
     fontSize: 24,
