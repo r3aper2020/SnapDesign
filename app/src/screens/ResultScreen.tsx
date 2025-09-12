@@ -22,6 +22,9 @@ import { designStorage } from '../services/DesignStorage';
 
 const { width } = Dimensions.get('window');
 
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
 type ResultScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Result'>;
 
 interface ResultScreenProps {
@@ -48,7 +51,13 @@ interface ResultScreenProps {
   };
 }
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route }) => {
+  // ============================================================================
+  // STATE & HOOKS
+  // ============================================================================
   const { theme } = useTheme();
   const { generatedImage, originalImage, products, designId } = route.params;
   
@@ -58,10 +67,6 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalImageType, setModalImageType] = useState<'original' | 'transformed'>('transformed');
-  
-  // Main image state (simplified - no zoom/pan)
-  
-  // Modal state (simplified - no zoom/pan)
   
   // Shopping list state
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
@@ -82,6 +87,9 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     loadCheckboxStates();
   }, [designId]);
 
+  // ============================================================================
+  // EVENT HANDLERS
+  // ============================================================================
   const shareImage = async () => {
     try {
       await Share.share({
@@ -141,6 +149,9 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     });
   };
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       {/* Background Image */}
@@ -181,7 +192,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
       >
 
         {/* Generated Image Card */}
-        <View style={[styles.card, { backgroundColor: theme.colors.background.secondary }]}>
+        <View style={[styles.card, { backgroundColor: 'rgba(0, 0, 0, 0.3)' }]}>
           <View style={styles.cardHeader}>
             <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
               {isShowingOriginal ? 'Original Space' : 'Transformed Space'}
@@ -238,22 +249,22 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             </View>
 
           {/* Action Buttons */}
-          <View style={styles.actionButtons}>
+          <View style={styles.imageActionButtons}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.colors.accent.purple }]}
-              onPress={shareImage}
+              style={[styles.imageActionButton, { backgroundColor: theme.colors.secondary.main }]}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Design' })}
             >
-              <Text style={[styles.actionButtonText, { color: theme.colors.text.primary }]}>
-                Share Design
+              <Text style={[styles.imageActionButtonText, { color: theme.colors.secondary.contrast }]}>
+                Create Another
               </Text>
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.colors.secondary.main }]}
-              onPress={() => navigation.navigate('MainTabs', { screen: 'Design' })}
+              style={[styles.imageActionButtonSecondary, { borderColor: theme.colors.accent.purple }]}
+              onPress={shareImage}
             >
-              <Text style={[styles.actionButtonText, { color: theme.colors.secondary.contrast }]}>
-                Create Another
+              <Text style={[styles.imageActionButtonText, { color: theme.colors.accent.purple }]}>
+                Share Design
               </Text>
             </TouchableOpacity>
           </View>
@@ -275,7 +286,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               const isChecked = checkedItems.has(index);
               return (
                 <View key={index} style={[styles.shoppingListItem, { 
-                  backgroundColor: theme.colors.background.secondary,
+                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
                   opacity: isChecked ? 0.6 : 1
                 }]}>
                   {/* Checkbox and Main Content */}
@@ -362,7 +373,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             })}
           </View>
         ) : (
-          <View style={[styles.card, { backgroundColor: theme.colors.background.secondary }]}>
+          <View style={[styles.card, { backgroundColor: 'rgba(0, 0, 0, 0.3)' }]}>
             <View style={styles.noProductsContainer}>
               <Text style={[styles.noProductsTitle, { color: theme.colors.text.primary }]}>
                 No Products Available
@@ -450,6 +461,9 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   );
 };
 
+// ============================================================================
+// STYLES
+// ============================================================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -532,11 +546,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
   },
   cardHeader: {
     marginBottom: 16,
@@ -567,41 +576,11 @@ const styles = StyleSheet.create({
     elevation: 12,
     alignSelf: 'center',
   },
-  imageWrapper: {
-    width: width - 88,
-    height: 280,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   generatedImage: {
     width: width - 88,
     height: 280,
     borderRadius: 20,
     resizeMode: 'cover',
-  },
-  resetZoomButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  resetZoomText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  swipeHint: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 4,
-    opacity: 0.6,
-    fontStyle: 'italic',
   },
   noImageContainer: {
     width: width - 88,
@@ -617,19 +596,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  actionButtons: {
+  imageActionButtons: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
   },
-  actionButton: {
+  imageActionButton: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  actionButtonText: {
+  imageActionButtonSecondary: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+  },
+  imageActionButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },
@@ -654,11 +646,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   listItemContent: {
     flexDirection: 'row',
@@ -830,15 +817,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     paddingHorizontal: 20,
-  },
-  modalControlButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-  },
-  modalControlText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   modalInstructions: {
     fontSize: 12,

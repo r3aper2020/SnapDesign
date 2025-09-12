@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,7 +26,9 @@ import { designStorage } from '../services/DesignStorage';
 
 const { width } = Dimensions.get('window');
 
-// Professional Icon Components
+// ============================================================================
+// ICON COMPONENTS
+// ============================================================================
 const CameraIcon = ({ size = 24, color = '#666' }) => (
   <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
     <View style={{
@@ -114,57 +118,166 @@ const SparkleIcon = ({ size = 24, color = '#666' }) => (
   </View>
 );
 
+const LightbulbIcon = ({ size = 24, color = '#666' }) => (
+  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+    {/* Bulb */}
+    <View style={{
+      width: size * 0.5,
+      height: size * 0.5,
+      backgroundColor: color,
+      borderRadius: size * 0.25,
+      position: 'absolute',
+      top: size * 0.1,
+    }} />
+    {/* Base */}
+    <View style={{
+      width: size * 0.3,
+      height: size * 0.2,
+      backgroundColor: color,
+      borderRadius: size * 0.05,
+      position: 'absolute',
+      bottom: size * 0.1,
+    }} />
+    {/* Filament */}
+    <View style={{
+      width: size * 0.4,
+      height: 2,
+      backgroundColor: color,
+      position: 'absolute',
+      top: size * 0.3,
+      transform: [{ rotate: '45deg' }],
+    }} />
+    <View style={{
+      width: size * 0.4,
+      height: 2,
+      backgroundColor: color,
+      position: 'absolute',
+      top: size * 0.3,
+      transform: [{ rotate: '-45deg' }],
+    }} />
+  </View>
+);
+
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
 type DesignScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Design'>;
 
 interface DesignScreenProps {
   navigation: DesignScreenNavigationProp;
 }
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
-  const { theme, isDark } = useTheme();
+  // ============================================================================
+  // STATE & HOOKS
+  // ============================================================================
+  const { theme } = useTheme();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [description, setDescription] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isInspirationModalVisible, setIsInspirationModalVisible] = useState(false);
+  
+  // Animation for the generate button
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Popular design ideas for inspiration
-  const popularIdeas = [
-    // Holiday & Seasonal
-    'Decorate this space for Christmas with lights and ornaments',
-    'Add Halloween decorations and spooky elements',
-    'Create a cozy Thanksgiving atmosphere with fall colors',
-    'Add Easter decorations and spring elements',
-    
-    // Simple Additions
-    'Add a plant in the corner with a nice pot',
-    'Place a reading chair by the window',
-    'Add some artwork on the walls',
-    'Put a small table and lamp in the corner',
-    
-    // Room Transformations
-    'Transform into a cozy home office with plants and good lighting',
-    'Create a Japanese zen garden with koi pond and bamboo',
-    'Design a modern kitchen with island and pendant lights',
-    'Make this a children\'s playroom with storage and bright colors',
-    
-    // Outdoor & Patio
-    'Create a Mediterranean patio with terracotta pots and string lights',
-    'Add outdoor seating and string lights for evening ambiance',
-    'Design a vegetable garden with raised beds and trellises',
-    'Create a cozy outdoor dining area with plants',
-    
-    // Style & Aesthetic
-    'Design a Scandinavian living room with light wood and plants',
-    'Make this a bohemian bedroom with macrame and plants',
-    'Create an industrial loft with exposed brick and metal accents',
-    'Design a minimalist space with clean lines and neutral colors',
-    
-    // Functional Spaces
-    'Transform into a home gym with mirrors and equipment',
-    'Create a craft room with storage and work surfaces',
-    'Design a wine cellar with racks and tasting area',
-    'Make this a home library with bookshelves and reading nook'
-  ];
+  // Start pulsing animation when button is ready to be pressed
+  useEffect(() => {
+    if (selectedImage && description.trim() && !isGenerating) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.08,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [selectedImage, description, isGenerating, pulseAnim]);
+
+  // ============================================================================
+  // DATA & CONSTANTS
+  // ============================================================================
+  // Organized inspiration categories
+  const inspirationCategories = {
+    'Holiday & Seasonal': [
+      'Decorate this space for Christmas with lights and ornaments',
+      'Add Halloween decorations and spooky elements',
+      'Create a cozy Thanksgiving atmosphere with fall colors',
+      'Add Easter decorations and spring elements',
+      'Create a Valentine\'s Day romantic setting',
+      'Design a New Year\'s Eve party space'
+    ],
+    'Simple Additions': [
+      'Add a plant in the corner with a nice pot',
+      'Place a reading chair by the window',
+      'Add some artwork on the walls',
+      'Put a small table and lamp in the corner',
+      'Add a cozy throw blanket and pillows',
+      'Place a mirror to reflect light'
+    ],
+    'Room Transformations': [
+      'Transform into a cozy home office with plants and good lighting',
+      'Create a Japanese zen garden with koi pond and bamboo',
+      'Design a modern kitchen with island and pendant lights',
+      'Make this a children\'s playroom with storage and bright colors',
+      'Convert into a home theater with comfortable seating',
+      'Create a meditation room with soft lighting'
+    ],
+    'Outdoor & Patio': [
+      'Create a Mediterranean patio with terracotta pots and string lights',
+      'Add outdoor seating and string lights for evening ambiance',
+      'Design a vegetable garden with raised beds and trellises',
+      'Create a cozy outdoor dining area with plants',
+      'Build a fire pit area with comfortable seating',
+      'Design a tropical oasis with palm plants'
+    ],
+    'Style & Aesthetic': [
+      'Design a Scandinavian living room with light wood and plants',
+      'Make this a bohemian bedroom with macrame and plants',
+      'Create an industrial loft with exposed brick and metal accents',
+      'Design a minimalist space with clean lines and neutral colors',
+      'Create a vintage-inspired space with antique furniture',
+      'Design a modern farmhouse with rustic elements'
+    ],
+    'Functional Spaces': [
+      'Transform into a home gym with mirrors and equipment',
+      'Create a craft room with storage and work surfaces',
+      'Design a wine cellar with racks and tasting area',
+      'Make this a home library with bookshelves and reading nook',
+      'Create a home bar with seating and lighting',
+      'Design a laundry room with organization systems'
+    ]
+  };
+
+  // ============================================================================
+  // EVENT HANDLERS
+  // ============================================================================
+  const openInspirationModal = () => {
+    setIsInspirationModalVisible(true);
+  };
+
+  const closeInspirationModal = () => {
+    setIsInspirationModalVisible(false);
+  };
+
+  const selectInspiration = (prompt: string) => {
+    setDescription(prompt);
+    closeInspirationModal();
+  };
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -183,18 +296,10 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      console.log('📸 Selected image:', {
-        uri: asset.uri,
-        width: asset.width,
-        height: asset.height,
-        fileSize: asset.fileSize,
-        mimeType: asset.mimeType
-      });
       
       // Try to get base64 data, fallback to URI if base64 is not available
       if (asset.base64) {
         setSelectedImage(asset.base64);
-        console.log('✅ Using base64 data, length:', asset.base64.length);
       } else if (asset.uri) {
         // Convert URI to base64 if needed
         try {
@@ -205,12 +310,11 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             const base64 = reader.result as string;
             const cleanBase64 = base64.split(',')[1]; // Remove data URL prefix
             setSelectedImage(cleanBase64);
-            console.log('✅ Converted URI to base64, length:', cleanBase64.length);
           };
           reader.readAsDataURL(blob);
         } catch (error) {
-          console.error('❌ Error converting URI to base64:', error);
-          Alert.alert('Error', 'Failed to process the selected image');
+          console.error('Error converting URI to base64:', error);
+          Alert.alert('Error', 'Failed to process the selected image. Please try again.');
         }
       } else {
         Alert.alert('Error', 'No image data available');
@@ -234,18 +338,10 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      console.log('📷 Camera photo:', {
-        uri: asset.uri,
-        width: asset.width,
-        height: asset.height,
-        fileSize: asset.fileSize,
-        mimeType: asset.mimeType
-      });
       
       // Try to get base64 data, fallback to URI if base64 is not available
       if (asset.base64) {
         setSelectedImage(asset.base64);
-        console.log('✅ Using camera base64 data, length:', asset.base64.length);
       } else if (asset.uri) {
         // Convert URI to base64 if needed
         try {
@@ -256,12 +352,11 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             const base64 = reader.result as string;
             const cleanBase64 = base64.split(',')[1]; // Remove data URL prefix
             setSelectedImage(cleanBase64);
-            console.log('✅ Converted camera URI to base64, length:', cleanBase64.length);
           };
           reader.readAsDataURL(blob);
         } catch (error) {
-          console.error('❌ Error converting camera URI to base64:', error);
-          Alert.alert('Error', 'Failed to process the captured photo');
+          console.error('Error converting camera URI to base64:', error);
+          Alert.alert('Error', 'Failed to process the captured photo. Please try again.');
         }
       } else {
         Alert.alert('Error', 'No photo data available');
@@ -286,11 +381,11 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           throw new Error('Server not responding');
         }
       } catch (healthError) {
-        throw new Error('Cannot connect to server. Make sure the API server is running on port 4000.');
+        throw new Error('Cannot connect to the design server. Please check your internet connection and try again.');
       }
       
       if (!selectedImage || selectedImage.length < 1000) {
-        throw new Error('Please select a valid image first');
+        throw new Error('Please select a valid image before generating your design');
       }
 
       const requestBody = {
@@ -299,11 +394,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         mimeType: 'image/jpeg'
       };
       
-      console.log('🚀 Sending design request:', {
-        description: requestBody.description,
-        imageSize: requestBody.imageBase64.length,
-        mimeType: requestBody.mimeType
-      });
       
       const response = await fetch(endpoints.decorate(), {
         method: 'POST',
@@ -326,14 +416,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
       const data = await response.json();
 
-      console.log('🎨 Design response received:', {
-        hasEditedImage: !!data.editedImageBase64,
-        editedImageSize: data.editedImageBase64?.length || 0,
-        productsCount: data.products?.items?.length || data.products?.length || 0,
-        products: data.products?.items || data.products,
-        tokenUsage: data.tokenUsage
-      });
-
       if (data.editedImageBase64 && data.products) {
         // Save the design locally
         try {
@@ -344,9 +426,8 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             products: data.products.items || data.products,
             tokenUsage: data.tokenUsage
           });
-          console.log('💾 Design saved successfully');
         } catch (saveError) {
-          console.error('❌ Error saving design:', saveError);
+          console.error('Error saving design:', saveError);
           // Continue to result screen even if saving fails
         }
 
@@ -356,7 +437,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           products: data.products.items || data.products
         });
       } else {
-        throw new Error('Invalid response format from server');
+        throw new Error('The design server returned an unexpected response. Please try again.');
       }
 
     } catch (err: any) {
@@ -366,6 +447,9 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
     }
   };
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       {/* Background Image */}
@@ -401,29 +485,57 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
           keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+          maintainVisibleContentPosition={{
+            minIndexForVisible: 0,
+            autoscrollToTopThreshold: 10
+          }}
         >
 
-        {/* Hero Image Section */}
-        <View style={styles.heroSection}>
+        {/* Hero Image Section - Using ResultScreen's working approach */}
+        <View style={[styles.card, { backgroundColor: 'rgba(0, 0, 0, 0.3)' }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
+              Your Space
+            </Text>
+            <Text style={[styles.cardSubtitle, { color: theme.colors.text.secondary }]}>
+              {selectedImage ? 'Your space is ready for AI transformation' : 'Upload your space to get started'}
+            </Text>            
+          </View>
+          
           {selectedImage ? (
-            <View style={styles.imageContainer}>
-              <Image 
-                source={{ uri: `data:image/jpeg;base64,${selectedImage}` }} 
-                style={styles.heroImage} 
-                resizeMode="cover"
-                fadeDuration={0}
-              />
-              <View style={styles.imageOverlay}>
-                <TouchableOpacity 
-                  style={styles.changeImageButton}
+            <View>
+              <View style={styles.imageContainer}>
+                <Image 
+                  source={{ uri: `data:image/jpeg;base64,${selectedImage}` }} 
+                  style={styles.generatedImage} 
+                  fadeDuration={0}
+                />
+              </View>
+              
+              {/* Image Action Buttons - Below the image */}
+              <View style={styles.imageActionButtons}>
+                <TouchableOpacity
+                  style={[styles.imageActionButton, { backgroundColor: theme.colors.secondary.main }]}
                   onPress={pickImage}
                 >
-                  <Text style={styles.changeImageText}>Change Photo</Text>
+                  <Text style={[styles.imageActionButtonText, { color: theme.colors.secondary.contrast }]}>
+                    Change Photo
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.imageActionButtonSecondary, { borderColor: theme.colors.accent.purple }]}
+                  onPress={takePhoto}
+                >
+                  <Text style={[styles.imageActionButtonText, { color: theme.colors.accent.purple }]}>
+                    Retake Photo
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
-            <View style={[styles.uploadArea, { borderColor: theme.colors.border.light }]}>
+            <View style={[styles.uploadArea, { borderColor: theme.colors.gradient.primary[1] }]}>
               <View style={styles.uploadIcon}>
                 <CameraIcon size={48} color={theme.colors.text.secondary} />
               </View>
@@ -456,75 +568,77 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         </View>
 
         {/* Design Input Section */}
-        <View style={styles.inputSection}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
-            What do you want to create?
-          </Text>
-          
-          <View style={styles.inputWrapper}>
-            <View style={[styles.inputContainer, { 
-              backgroundColor: theme.colors.background.secondary,
-              borderColor: theme.colors.border.light 
-            }]}>
-              <TextInput
-                style={[styles.designInput, { 
-                  color: theme.colors.text.primary,
-                }]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Describe your design vision... e.g., 'Transform this into a modern home office with plants and natural lighting'"
-                placeholderTextColor={theme.colors.text.secondary}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-            </View>
-            
-            {/* Floating Random Idea Button */}
+        <View style={[styles.card, { backgroundColor: 'rgba(0, 0, 0, 0.3)' }]}>
+          <View style={styles.inputHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+              What do you want to create?
+            </Text>
             <TouchableOpacity
-              style={[styles.floatingRandomButton, { 
-                backgroundColor: theme.colors.secondary.main,
-                shadowColor: theme.colors.secondary.main,
+              style={[styles.inspirationButton, { 
+                backgroundColor: theme.colors.accent.purple,
+                shadowColor: theme.colors.accent.purple,
               }]}
-              onPress={() => {
-                const randomIndex = Math.floor(Math.random() * popularIdeas.length);
-                setDescription(popularIdeas[randomIndex]);
-              }}
+              onPress={openInspirationModal}
             >
-              <DiceIcon size={16} color={theme.colors.secondary.contrast} />
+              <LightbulbIcon size={16} color="#FFFFFF" />
+              <Text style={[styles.inspirationButtonText, { color: "#FFFFFF" }]}>
+                Inspiration
+              </Text>
             </TouchableOpacity>
+          </View>
+          
+          <View style={[styles.inputContainer, { 
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderColor: 'rgba(255, 255, 255, 0.2)' 
+          }]}>
+            <TextInput
+              style={[styles.designInput, { 
+                color: theme.colors.text.primary,
+              }]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Describe your design vision... e.g., 'Transform this into a modern home office with plants and natural lighting'"
+              placeholderTextColor={theme.colors.text.secondary}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
           </View>
         </View>
 
-        {/* Generate Button */}
-        <TouchableOpacity
-          style={styles.generateButton}
-          onPress={handleGenerateDesign}
-          disabled={!selectedImage || !description.trim() || isGenerating}
-        >
-          <LinearGradient
-            colors={theme.colors.gradient.primary}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.gradientGenerateButton}
-          >
-            {isGenerating ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color={theme.colors.text.primary} size="small" />
-                <Text style={[styles.loadingText, { color: theme.colors.text.primary }]}>
-                  Creating your design...
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.generateButtonContent}>
-                <SparkleIcon size={20} color={theme.colors.text.primary} />
-                <Text style={[styles.generateButtonText, { color: theme.colors.text.primary }]}>
-                  Generate Design
-                </Text>
-              </View>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+        {/* Generate Button - Only show when ready */}
+        {(selectedImage && description.trim()) && (
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <TouchableOpacity
+              style={styles.generateButton}
+              onPress={handleGenerateDesign}
+              disabled={isGenerating}
+            >
+              <LinearGradient
+                colors={theme.colors.gradient.primary}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.gradientGenerateButton}
+              >
+                {isGenerating ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator color={theme.colors.text.primary} size="small" />
+                    <Text style={[styles.loadingText, { color: theme.colors.text.primary }]}>
+                      Generating your design...
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.generateButtonContent}>
+                    <SparkleIcon size={20} color={theme.colors.text.primary} />
+                    <Text style={[styles.generateButtonText, { color: theme.colors.text.primary }]}>
+                      Generate Design
+                    </Text>
+                  </View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
         {/* Error Display */}
         {error && (
@@ -534,10 +648,63 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Inspiration Modal */}
+      <Modal
+        visible={isInspirationModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeInspirationModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: theme.colors.background.secondary }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.colors.text.primary }]}>
+                Design Inspiration
+              </Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={closeInspirationModal}
+              >
+                <Text style={[styles.modalCloseText, { color: theme.colors.text.primary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Categories */}
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              {Object.entries(inspirationCategories).map(([category, prompts]) => (
+                <View key={category} style={styles.categorySection}>
+                  <Text style={[styles.categoryTitle, { color: theme.colors.text.primary }]}>
+                    {category}
+                  </Text>
+                  {prompts.map((prompt, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[styles.promptItem, { 
+                        backgroundColor: theme.colors.background.primary,
+                        borderColor: theme.colors.border.light 
+                      }]}
+                      onPress={() => selectInspiration(prompt)}
+                    >
+                      <Text style={[styles.promptText, { color: theme.colors.text.primary }]}>
+                        {prompt}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
+// ============================================================================
+// STYLES
+// ============================================================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -558,6 +725,7 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
     flexGrow: 1,
+    minHeight: '100%',
   },
   
   // Fixed Header Section
@@ -595,49 +763,83 @@ const styles = StyleSheet.create({
     maxWidth: width - 80,
   },
 
-  // Hero Section
-  heroSection: {
-    marginBottom: 24,
+  // Card Layout
+  card: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
   },
+  cardHeader: {
+    marginBottom: 16,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.7,
+  },
+  
+  // Image Display
   imageContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
     position: 'relative',
-    borderRadius: 20,
-    overflow: 'hidden',
+    width: width - 88,
     height: 280,
+    overflow: 'hidden',
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 12,
+    alignSelf: 'center',
   },
-  heroImage: {
-    width: '100%',
-    height: '100%',
+  generatedImage: {
+    width: width - 88,
+    height: 280,
+    borderRadius: 20,
+    resizeMode: 'cover',
   },
-  imageOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'flex-end',
+  
+  // Image Action Buttons
+  imageActionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 3,
+  },
+  imageActionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    paddingBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  changeImageButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
+  imageActionButtonSecondary: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
   },
-  changeImageText: {
-    fontSize: 14,
+  imageActionButtonText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
 
-  // Upload Area - Modern dark design
+  // Upload Area
   uploadArea: {
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -666,84 +868,74 @@ const styles = StyleSheet.create({
   },
   uploadButtons: {
     flexDirection: 'row',
-    gap: 12,
-    width: '80%',
+    gap: 8,
+    width: '100%',
     alignSelf: 'center',
   },
   uploadButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 12,
     alignItems: 'center',
-    minHeight: 36,
+    minHeight: 40,
   },
   uploadButtonSecondary: {
     backgroundColor: 'transparent',
     borderWidth: 2,
   },
   uploadButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
 
-  // Input Section
-  inputSection: {
-    marginBottom: 20,
+  inputHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 24,
     fontWeight: '700',
-    marginBottom: 16,
     letterSpacing: -0.5,
-  },
-  inputWrapper: {
-    position: 'relative',
+    flex: 1,
   },
   inputContainer: {
     borderRadius: 24,
     borderWidth: 1,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 12,
     position: 'relative',
     overflow: 'hidden',
   },
   designInput: {
     padding: 20,
-    paddingRight: 60, // Make room for the floating button
     fontSize: 16,
     lineHeight: 24,
     minHeight: 120,
     textAlignVertical: 'top',
   },
 
-  // Floating Random Idea Button
-  floatingRandomButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+  // Inspiration Button
+  inspirationButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    gap: 4,
+  },
+  inspirationButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   // Generate Button - Matching Find Products style
   generateButton: {
     borderRadius: 28,
-    shadowColor: '#9B51E0',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 12,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -788,5 +980,72 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#FF453A',
     textAlign: 'center',
+  },
+
+  // Inspiration Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '90%',
+    maxHeight: '80%',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  modalContent: {
+    maxHeight: 400,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  categorySection: {
+    marginBottom: 20,
+  },
+  categoryTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  promptItem: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  promptText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
