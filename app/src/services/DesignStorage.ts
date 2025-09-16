@@ -205,7 +205,7 @@ class DesignStorage {
       if (offset === 0 || !hasMore) {
         const countResult = await this.db!.getFirstAsync(
           `SELECT COUNT(*) as count FROM designs`
-        );
+        ) as { count: number } | null;
         total = countResult?.count || 0;
       } else {
         // Estimate total based on current data
@@ -276,7 +276,15 @@ class DesignStorage {
       const result = await this.db!.getFirstAsync(
         `SELECT * FROM designs WHERE id = ?`,
         [designId]
-      );
+      ) as {
+        id: string;
+        timestamp: number;
+        description: string;
+        originalImage: string;
+        generatedImage: string;
+        products: string;
+        tokenUsage?: string | null;
+      } | null;
 
       if (!result) return null;
 
@@ -319,7 +327,7 @@ class DesignStorage {
       const result = await this.db!.getFirstAsync(
         `SELECT checked_items FROM checkbox_states WHERE design_id = ?`,
         [designId]
-      );
+      ) as { checked_items: string } | null;
 
       if (result && result.checked_items) {
         const checkedArray = JSON.parse(result.checked_items);
