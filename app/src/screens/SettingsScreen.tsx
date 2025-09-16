@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
+import { useAuth } from '../contexts/AuthContext';
 
 // Professional Icon Components
 const SettingsIcon = ({ size = 24, color = '#666' }) => (
@@ -133,8 +134,13 @@ const InfoIcon = ({ size = 24, color = '#666' }) => (
   </View>
 );
 
-export const SettingsScreen: React.FC = () => {
+interface SettingsScreenProps {
+  navigation?: any;
+}
+
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const { theme, isDark, toggleTheme } = useTheme();
+  const { user, logout, isAuthenticated } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const handleBillingPress = () => {
@@ -175,6 +181,33 @@ export const SettingsScreen: React.FC = () => {
         { text: 'OK', style: 'default' }
       ]
     );
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive',
+          onPress: logout
+        }
+      ]
+    );
+  };
+
+  const handleLoginPress = () => {
+    if (navigation) {
+      navigation.navigate('Login');
+    }
+  };
+
+  const handleSignupPress = () => {
+    if (navigation) {
+      navigation.navigate('Signup');
+    }
   };
 
   return (
@@ -292,6 +325,86 @@ export const SettingsScreen: React.FC = () => {
               ›
             </Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Account Section */}
+        <View style={[styles.section, { backgroundColor: theme.colors.background.secondary }]}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleContainer}>
+              <SettingsIcon size={20} color={theme.colors.primary.main} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+                Account
+              </Text>
+            </View>
+          </View>
+          
+          {isAuthenticated && user ? (
+            <>
+              <View style={styles.settingItem}>
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingLabel, { color: theme.colors.text.primary }]}>
+                    {user.name}
+                  </Text>
+                  <Text style={[styles.settingDescription, { color: theme.colors.text.secondary }]}>
+                    {user.email}
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity 
+                style={styles.settingItem}
+                onPress={handleLogout}
+              >
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingLabel, { color: '#FF6B6B' }]}>
+                    Sign Out
+                  </Text>
+                  <Text style={[styles.settingDescription, { color: theme.colors.text.secondary }]}>
+                    Sign out of your account
+                  </Text>
+                </View>
+                <Text style={[styles.chevron, { color: '#FF6B6B' }]}>
+                  ›
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity 
+                style={styles.settingItem}
+                onPress={handleLoginPress}
+              >
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingLabel, { color: theme.colors.primary.main }]}>
+                    Sign In
+                  </Text>
+                  <Text style={[styles.settingDescription, { color: theme.colors.text.secondary }]}>
+                    Sign in to sync your designs
+                  </Text>
+                </View>
+                <Text style={[styles.chevron, { color: theme.colors.primary.main }]}>
+                  ›
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.settingItem}
+                onPress={handleSignupPress}
+              >
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingLabel, { color: theme.colors.primary.main }]}>
+                    Create Account
+                  </Text>
+                  <Text style={[styles.settingDescription, { color: theme.colors.text.secondary }]}>
+                    Sign up to save your designs
+                  </Text>
+                </View>
+                <Text style={[styles.chevron, { color: theme.colors.primary.main }]}>
+                  ›
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         {/* Support Section */}

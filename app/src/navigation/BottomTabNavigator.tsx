@@ -120,11 +120,12 @@ export const BottomTabNavigator: React.FC = () => {
       />
       <Tab.Screen 
         name="Settings" 
-        component={SettingsScreen}
         options={{
           tabBarLabel: 'Settings',
         }}
-      />
+      >
+        {({ navigation }) => <SettingsScreen navigation={navigation} />}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 };

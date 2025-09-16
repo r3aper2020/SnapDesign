@@ -6,4 +6,16 @@ export const endpoints = {
   health: (): string => `${API_BASE_URL}/design/health`,
   decorate: (): string => `${API_BASE_URL}/design/decorate`,
   search: (): string => `${API_BASE_URL}/design/search`,
+  // Authentication endpoints
+  auth: {
+    signup: (): string => `${API_BASE_URL}/auth/signup`,
+    login: (): string => `${API_BASE_URL}/auth/login`,
+    refresh: (): string => `${API_BASE_URL}/auth/refresh`,
+    me: (): string => `${API_BASE_URL}/auth/me`,
+    resetPassword: (): string => `${API_BASE_URL}/auth/reset-password`,
+  },
+  // Firestore endpoints
+  firestore: {
+    config: (): string => `${API_BASE_URL}/firestore/config`,
+  },
 };

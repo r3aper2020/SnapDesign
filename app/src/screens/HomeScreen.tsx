@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -296,6 +297,7 @@ interface HomeScreenProps {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
+  const { isAuthenticated, user } = useAuth();
   
   // Image cycling state
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -313,6 +315,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const handleDesignWithTheme = () => {
     navigation.navigate('Design');
+  };
+
+  const handleLoginPress = () => {
+    navigation.navigate('Login');
+  };
+
+  const handleSignupPress = () => {
+    navigation.navigate('Signup');
   };
 
   return (
@@ -334,10 +344,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={[styles.appSubtitle, { color: theme.colors.text.secondary }]}>
-            AI-Assisted Designs
-          </Text>
         </View>
+
+        {/* Welcome Section */}
+        {isAuthenticated && user && (
+          <View style={styles.welcomeSection}>
+            <Text style={[styles.welcomeText, { color: theme.colors.text.primary }]}>
+              Welcome back, {user.name}! 👋
+            </Text>
+            <Text style={[styles.welcomeSubtext, { color: theme.colors.text.secondary }]}>
+              Ready to create something amazing?
+            </Text>
+          </View>
+        )}
 
         {/* Hero Banner with Cycling Images */}
         <View style={styles.heroBanner}>
@@ -381,21 +400,50 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 ))}
               </View>
               
-              <TouchableOpacity
-                style={styles.heroButton}
-                onPress={handleDesignWithTheme}
-              >
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.heroButtonGradient}
+              {isAuthenticated ? (
+                <TouchableOpacity
+                  style={styles.heroButton}
+                  onPress={handleDesignWithTheme}
                 >
-                  <Text style={[styles.heroButtonText, { color: theme.colors.text.primary }]}>
-                    Start Creating
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.heroButtonGradient}
+                  >
+                    <Text style={[styles.heroButtonText, { color: theme.colors.text.primary }]}>
+                      Start Creating
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.heroAuthButtonsContainer}>
+                  <TouchableOpacity
+                    style={[styles.heroAuthButton, styles.heroSignupButton]}
+                    onPress={handleSignupPress}
+                  >
+                    <LinearGradient
+                      colors={['rgba(255, 255, 255, 0.25)', 'rgba(255, 255, 255, 0.15)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.heroAuthButtonGradient}
+                    >
+                      <Text style={[styles.heroAuthButtonText, { color: theme.colors.text.primary }]}>
+                        Sign Up & Start Creating
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.heroAuthButton, styles.heroLoginButton]}
+                    onPress={handleLoginPress}
+                  >
+                    <Text style={[styles.heroAuthButtonText, { color: theme.colors.text.primary }]}>
+                      Sign In
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </LinearGradient>
         </View>
@@ -539,8 +587,8 @@ const styles = StyleSheet.create({
   // Header Section
   headerSection: {
     alignItems: 'center',
-    marginBottom: 32,
-    paddingTop: 20,
+    marginBottom: 3,
+    paddingTop: 3,
   },
   logo: {
     width: 210,
@@ -555,6 +603,57 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     fontWeight: '500',
     marginTop: -5,
+  },
+  // Welcome Section
+  welcomeSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  welcomeText: {
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  welcomeSubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  // Hero Auth Buttons
+  heroAuthButtonsContainer: {
+    width: '100%',
+    gap: 12,
+  },
+  heroAuthButton: {
+    borderRadius: 28,
+    shadowColor: '#FF6A3D',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  heroSignupButton: {
+    // Primary button with gradient
+  },
+  heroLoginButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+  },
+  heroAuthButtonGradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 28,
+    alignItems: 'center',
+  },
+  heroAuthButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   // Hero Banner Styles
   heroBanner: {

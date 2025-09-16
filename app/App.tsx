@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { ThemeProvider, useTheme } from './src/theme';
+import { AuthProvider } from './src/contexts/AuthContext';
 
 const AppContent = () => {
   const { isDark } = useTheme();
@@ -19,7 +20,9 @@ export default function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
       <ThemeProvider initialTheme="dark">
-        <AppContent />
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

@@ -1,0 +1,1 @@
+export { firestoreService } from './FirestoreService';
