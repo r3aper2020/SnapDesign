@@ -19,6 +19,7 @@ export interface FirestoreConfig {
 class FirestoreService {
   private config: FirestoreConfig | null = null;
   private idToken: string | null = null;
+  private isDisabled: boolean = true; // Safety flag - DISABLED BY DEFAULT to prevent further damage
 
   async initialize(idToken: string): Promise<boolean> {
     try {
@@ -63,9 +64,37 @@ class FirestoreService {
     };
   }
 
+  private async isServiceReady(): Promise<boolean> {
+    if (this.isDisabled) {
+      console.warn('Firestore service is disabled for safety');
+      return false;
+    }
+    if (!this.config || !this.idToken) {
+      console.error('Firestore service not properly initialized');
+      return false;
+    }
+    return true;
+  }
+
+  // Safety methods
+  disable(): void {
+    console.warn('Firestore service disabled for safety');
+    this.isDisabled = true;
+  }
+
+  enable(): void {
+    console.log('Firestore service enabled');
+    this.isDisabled = false;
+  }
+
   // User Operations
   async createUser(uid: string, email: string, displayName: string): Promise<FirestoreUser | null> {
     try {
+      // Safety check
+      if (!(await this.isServiceReady())) {
+        return null;
+      }
+
       // First check if user already exists
       const existingUser = await this.getUser(uid);
       if (existingUser) {
@@ -76,8 +105,9 @@ class FirestoreService {
       const userData = createDefaultUser(uid, email, displayName);
       const firestoreUser: FirestoreUser = { uid, ...userData };
 
+      // Use POST to create a new document, not PATCH which can overwrite
       const response = await fetch(this.getFirestoreUrl(`${FIRESTORE_COLLECTIONS.USERS}/${uid}`), {
-        method: 'PATCH',
+        method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
           fields: this.convertToFirestoreFields(firestoreUser),
@@ -85,7 +115,12 @@ class FirestoreService {
       });
 
       if (!response.ok) {
-        console.error('Failed to create user in Firestore:', response.status);
+        // If document already exists (409 conflict), try to get the existing user
+        if (response.status === 409) {
+          console.log('User document already exists, fetching existing user');
+          return await this.getUser(uid);
+        }
+        console.error('Failed to create user in Firestore:', response.status, await response.text());
         return null;
       }
 
@@ -156,14 +191,35 @@ class FirestoreService {
 
   async updateUserLastLogin(uid: string): Promise<boolean> {
     try {
+      // Safety check
+      if (!(await this.isServiceReady())) {
+        return false;
+      }
+
+      // Get the current user data first to preserve existing fields
+      const currentUser = await this.getUser(uid);
+      if (!currentUser) {
+        console.error('Cannot update last login: user not found');
+        return false;
+      }
+
+      // Update only the specific fields we want to change
+      const now = new Date().toISOString();
+      const updatedUser = {
+        ...currentUser,
+        lastLoginAt: now,
+        stats: {
+          ...currentUser.stats,
+          lastActiveAt: now,
+        },
+        updatedAt: now,
+      };
+
       const response = await fetch(this.getFirestoreUrl(`${FIRESTORE_COLLECTIONS.USERS}/${uid}`), {
         method: 'PATCH',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
-          fields: {
-            lastLoginAt: { stringValue: new Date().toISOString() },
-            'stats.lastActiveAt': { stringValue: new Date().toISOString() },
-          },
+          fields: this.convertToFirestoreFields(updatedUser),
         }),
       });
 
@@ -176,14 +232,35 @@ class FirestoreService {
 
   async updateUserStats(uid: string, stats: Partial<FirestoreUser['stats']>): Promise<boolean> {
     try {
+      // Safety check
+      if (!(await this.isServiceReady())) {
+        return false;
+      }
+
+      // Get the current user data first to preserve existing fields
+      const currentUser = await this.getUser(uid);
+      if (!currentUser) {
+        console.error('Cannot update user stats: user not found');
+        return false;
+      }
+
+      // Update only the specific stats fields we want to change
+      const now = new Date().toISOString();
+      const updatedUser = {
+        ...currentUser,
+        stats: {
+          ...currentUser.stats,
+          ...stats,
+          lastActiveAt: now,
+        },
+        updatedAt: now,
+      };
+
       const response = await fetch(this.getFirestoreUrl(`${FIRESTORE_COLLECTIONS.USERS}/${uid}`), {
         method: 'PATCH',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
-          fields: {
-            'stats.lastActiveAt': { stringValue: new Date().toISOString() },
-            ...this.convertToFirestoreFields({ stats }),
-          },
+          fields: this.convertToFirestoreFields(updatedUser),
         }),
       });
 
@@ -204,9 +281,16 @@ class FirestoreService {
       if (typeof value === 'string') {
         fields[key] = { stringValue: value };
       } else if (typeof value === 'number') {
-        fields[key] = { integerValue: value.toString() };
+        // Handle both integers and doubles
+        if (Number.isInteger(value)) {
+          fields[key] = { integerValue: value.toString() };
+        } else {
+          fields[key] = { doubleValue: value };
+        }
       } else if (typeof value === 'boolean') {
         fields[key] = { booleanValue: value };
+      } else if (value instanceof Date) {
+        fields[key] = { timestampValue: value.toISOString() };
       } else if (Array.isArray(value)) {
         fields[key] = { arrayValue: { values: value.map(v => this.convertToFirestoreFields(v)) } };
       } else if (typeof value === 'object') {
@@ -225,8 +309,12 @@ class FirestoreService {
         obj[key] = field.stringValue;
       } else if (field.integerValue !== undefined) {
         obj[key] = parseInt(field.integerValue);
+      } else if (field.doubleValue !== undefined) {
+        obj[key] = field.doubleValue;
       } else if (field.booleanValue !== undefined) {
         obj[key] = field.booleanValue;
+      } else if (field.timestampValue !== undefined) {
+        obj[key] = new Date(field.timestampValue).toISOString();
       } else if (field.arrayValue !== undefined) {
         obj[key] = field.arrayValue.values.map((v: any) => this.convertFromFirestoreFields(v));
       } else if (field.mapValue !== undefined) {
