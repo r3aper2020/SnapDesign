@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,10 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Animated,
   StatusBar,
+  Modal,
+  Animated,
 } from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../theme/ThemeProvider';
@@ -25,15 +25,12 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
 import {
-  StepIndicator,
   ImagePreview,
   InspirationModal,
-  SwipeIndicator,
   ErrorDisplay,
   SparkleIcon,
 } from '../components';
 import { useDesignForm } from '../hooks/useDesignForm';
-import { useStepAnimations } from '../hooks/useStepAnimations';
 
 const { width, height } = Dimensions.get('window');
 
@@ -54,8 +51,8 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
   // STATE & HOOKS
   // ============================================================================
   const { theme } = useTheme();
-  const [currentStep, setCurrentStep] = useState(1);
   const [isInspirationModalVisible, setIsInspirationModalVisible] = useState(false);
+  const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   
   // Local state for image (more reliable than hook state)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
@@ -63,50 +60,15 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
   
   // Custom hooks
   const formState = useDesignForm();
-  const animations = useStepAnimations(currentStep);
   
-  // ScrollView ref for auto-scrolling
-  const scrollViewRef = useRef<ScrollView>(null);
+  // Get screen dimensions
+  const { width, height } = Dimensions.get('window');
   
-  // Function to scroll to text input when focused
-  const scrollToTextInput = useCallback(() => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  }, []);
-
-  // Step navigation functions
-  const goToNextStep = useCallback(() => {
-    if (currentStep < 3 && formState.canProceedToNext(currentStep)) {
-      if (formState.validateForm(currentStep)) {
-        setCurrentStep(currentStep + 1);
-      }
-    }
-  }, [currentStep, formState]);
-
-  const goToPreviousStep = useCallback(() => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-      formState.setError(null);
-    }
-  }, [currentStep, formState]);
-
-  // Enhanced swipe gesture handler
-  const onSwipeGesture = useCallback((event: any) => {
-    const { translationX, state, velocityX } = event.nativeEvent;
-    
-    if (state === State.END) {
-      const isSwipeLeft = translationX < -30 || velocityX < -500;
-      const isSwipeRight = translationX > 30 || velocityX > 500;
-      
-      if (isSwipeLeft && currentStep < 3 && formState.canProceedToNext(currentStep)) {
-        goToNextStep();
-      } else if (isSwipeRight && currentStep > 1) {
-        goToPreviousStep();
-      }
-    }
-  }, [currentStep, formState, goToNextStep, goToPreviousStep]);
-
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const loadingFadeAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   // ============================================================================
   // EVENT HANDLERS
@@ -123,6 +85,14 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
     formState.setDescription(prompt);
     closeInspirationModal();
   }, [formState, closeInspirationModal]);
+
+  const openImageModal = useCallback(() => {
+    setIsImageModalVisible(true);
+  }, []);
+
+  const closeImageModal = useCallback(() => {
+    setIsImageModalVisible(false);
+  }, []);
 
   const pickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -195,12 +165,61 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
   }, [formState]);
 
   const handleGenerateDesign = useCallback(async () => {
-    if (!formState.validateForm(3)) {
+    // Validate that we have both image and description
+    if (!formState.selectedImageUri && !localImageUri) {
+      formState.setError('Please select an image first');
+      return;
+    }
+    
+    if (!formState.description.trim()) {
+      formState.setError('Please describe your design vision');
       return;
     }
 
-    formState.setIsGenerating(true);
     formState.setError(null);
+
+    // Start fade animation immediately
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(loadingFadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Start pulsing animation
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseAnimation.start();
+
+    // Start progress animation
+    Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: 30000, // 30 seconds for full progress
+      useNativeDriver: false,
+    }).start();
+
+    // Set generating state after a short delay to allow animation to start
+    setTimeout(() => {
+      formState.setIsGenerating(true);
+    }, 100);
 
     try {
       // Health check
@@ -216,10 +235,11 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       // Ensure we have base64 data for the image
       let imageBase64 = formState.selectedImage;
       
-      if (!imageBase64 && formState.selectedImageUri) {
+      if (!imageBase64 && (formState.selectedImageUri || localImageUri)) {
         // Convert URI to base64 if we don't have it yet
         try {
-          const response = await fetch(formState.selectedImageUri);
+          const imageUri = formState.selectedImageUri || localImageUri!;
+          const response = await fetch(imageUri);
           const blob = await response.blob();
           const reader = new FileReader();
           
@@ -276,6 +296,16 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       const data = await response.json();
 
       if (data.editedImageBase64 && data.products) {
+        // Fast-track progress bar to completion
+        Animated.timing(progressAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: false,
+        }).start();
+
+        // Small delay to let progress bar complete before navigation
+        await new Promise(resolve => setTimeout(resolve, 600));
+
         try {
           await designStorage.saveDesign({
             description: formState.description.trim(),
@@ -300,75 +330,150 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
     } catch (err: any) {
       formState.setError(err.message || 'Failed to generate design');
+      
+      // Reset animation on error
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(loadingFadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } finally {
       formState.setIsGenerating(false);
     }
-  }, [formState, navigation]);
+  }, [formState, navigation, localImageUri, fadeAnim, loadingFadeAnim]);
 
   // ============================================================================
   // RENDER FUNCTIONS
   // ============================================================================
-  const renderStep1 = () => (
-      <View style={styles.stepContent}>
-        <View style={styles.stepHeader}>
-          <Text style={[styles.stepTitle, { color: theme.colors.text.primary }]}>
-            Upload Your Space
-          </Text>
-          <Text style={[styles.stepSubtitle, { color: theme.colors.text.secondary }]}>
-            Take a photo or choose from your gallery
-          </Text>
-        </View>
-      
-      {/* Direct image display - bypassing ImagePreview component */}
-      {localImageUri && (
-        <View style={{ alignItems: 'center', marginBottom: 20 }}>
-          <View style={{ 
-            width: width - 60, 
-            height: width * 0.8, 
-            borderRadius: 20, 
-            overflow: 'hidden'
-          }}>
-            <Image 
-              source={{ uri: localImageUri }} 
-              style={{ width: '100%', height: '100%' }}
-              resizeMode="contain"
-            />
+  const renderLoadingScreen = () => {
+    const currentImageUri = localImageUri || formState.selectedImageUri;
+    
+    return (
+      <Animated.View 
+        style={[
+          styles.loadingScreen,
+          {
+            opacity: loadingFadeAnim,
+          }
+        ]}
+      >
+        <View style={styles.loadingMainContainer}>
+          {/* Header */}
+          <View style={styles.loadingHeader}>
+            <Text style={[styles.loadingTitle, { color: theme.colors.text.primary }]}>
+              AI Design Generation
+            </Text>
+            <Text style={[styles.loadingSubtitle, { color: theme.colors.text.secondary }]}>
+              Transforming your space...
+            </Text>
           </View>
-          <View style={{ flexDirection: 'row', gap: 16, marginTop: 20, width: width - 60 }}>
-            <TouchableOpacity 
-              style={{ flex: 1, paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, backgroundColor: theme.colors.background.secondary }}
-              onPress={pickImage}
-            >
-              <Text style={{ fontSize: 14, fontWeight: '600', color: theme.colors.text.primary, textAlign: 'center' }}>
-                Change Photo
+
+          {/* Image Preview */}
+          {currentImageUri && (
+            <View style={styles.imagePreviewContainer}>
+              <Animated.View 
+                style={[
+                  styles.imagePreview,
+                  {
+                    transform: [{ scale: pulseAnim }]
+                  }
+                ]}
+              >
+                <LinearGradient
+                  colors={theme.colors.gradient.primary}
+                  style={styles.gradientBorder}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Image 
+                    source={{ uri: currentImageUri }}
+                    style={styles.previewImage}
+                    resizeMode="cover"
+                  />
+                </LinearGradient>
+                <View style={styles.imageOverlay}>
+                  <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]} />
+                  <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]} />
+                </View>
+              </Animated.View>
+            </View>
+          )}
+
+          {/* Processing Steps */}
+          <View style={styles.processingSteps}>
+            <View style={styles.processingStep}>
+              <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
+                <Text style={styles.stepIconText}>●</Text>
+              </View>
+              <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
+                Analyzing image composition
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={{ flex: 1, paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.colors.primary.main }}
-              onPress={takePhoto}
-            >
-              <Text style={{ fontSize: 14, fontWeight: '600', color: theme.colors.primary.main, textAlign: 'center' }}>
-                Retake
+            </View>
+            
+            <View style={styles.processingStep}>
+              <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
+                <Text style={styles.stepIconText}>●</Text>
+              </View>
+              <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
+                Processing design requirements
               </Text>
-            </TouchableOpacity>
+            </View>
+            
+            <View style={styles.processingStep}>
+              <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
+                <Text style={styles.stepIconText}>●</Text>
+              </View>
+              <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
+                Generating AI transformation
+              </Text>
+            </View>
+          </View>
+
+          {/* Progress Bar */}
+          <View style={styles.progressSection}>
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBar, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                <Animated.View 
+                  style={[
+                    styles.progressFill,
+                    { 
+                      backgroundColor: theme.colors.primary.main,
+                      width: progressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%'],
+                      })
+                    }
+                  ]} 
+                />
+              </View>
+            </View>
+            <Text style={[styles.progressText, { color: theme.colors.text.secondary }]}>
+              Please wait while we create your design...
+            </Text>
           </View>
         </View>
-      )}
+      </Animated.View>
+    );
+  };
+  const renderPhotoCaptureSection = () => (
+    <View style={styles.photoCaptureSection}>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+          Take a Photo
+        </Text>
+        <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
+          Capture your space to get started
+        </Text>
+      </View>
       
-      {/* Fallback to ImagePreview if no local image */}
-      {!localImageUri && (
-        <ImagePreview
-          imageUri={formState.selectedImageUri}
-          isProcessing={formState.isProcessingImage}
-          onRetake={takePhoto}
-          onChangePhoto={pickImage}
-          theme={theme}
-          size="large"
-          showActions={!!formState.selectedImageUri}
-          renderKey={formState.imageRenderKey}
-        />
-      )}
-      
+      {/* Upload buttons when no image selected */}
       {!(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && (
         <View style={styles.uploadButtons}>
           <TouchableOpacity 
@@ -393,118 +498,98 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       )}
+      
+      {/* Processing state */}
+      {formState.isProcessingImage && (
+        <View style={styles.processingContainer}>
+          <ActivityIndicator color={theme.colors.primary.main} size="large" />
+          <Text style={[styles.processingText, { color: theme.colors.text.secondary }]}>
+            Processing your image...
+          </Text>
+        </View>
+      )}
     </View>
   );
 
-  const renderStep2 = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.stepHeader}>
-        <Text style={[styles.stepTitle, { color: theme.colors.text.primary }]}>
+  const renderThumbnailAndPromptSection = () => (
+    <View style={styles.thumbnailPromptSection}>
+      {/* Header section with title and Get Ideas button */}
+      <View style={styles.promptHeader}>
+        <Text style={[styles.promptTitle, { color: theme.colors.text.primary }]}>
           Describe Your Vision
         </Text>
-        <Text style={[styles.stepSubtitle, { color: theme.colors.text.secondary }]}>
-          Tell us what you want to create in this space
-        </Text>
+        <TouchableOpacity
+          style={[styles.inspirationButton, { backgroundColor: theme.colors.accent.purple }]}
+          onPress={openInspirationModal}
+          accessibilityLabel="Get design inspiration ideas"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.inspirationButtonText, { color: "#FFFFFF" }]}>
+            Get Ideas
+          </Text>
+        </TouchableOpacity>
       </View>
       
-      {formState.selectedImageUri && (
-        <View style={styles.step2ImageContainer}>
-          <ImagePreview
-            imageUri={formState.selectedImageUri}
-            isProcessing={false}
-            onRetake={takePhoto}
-            onChangePhoto={pickImage}
-            theme={theme}
-            size="large"
-            showActions={false}
-            renderKey={formState.imageRenderKey}
-          />
-        </View>
-      )}
-      
-      <View style={styles.inputSection}>
-        <View style={styles.inputHeader}>
-          <Text style={[styles.inputLabel, { color: theme.colors.text.primary }]}>
-            What do you want to create?
-          </Text>
-          <TouchableOpacity
-            style={[styles.inspirationButton, { backgroundColor: theme.colors.accent.purple }]}
-            onPress={openInspirationModal}
-            accessibilityLabel="Get design inspiration ideas"
+      {/* Side-by-side container */}
+      <View style={styles.thumbnailPromptContainer}>
+        {/* Thumbnail on the left */}
+        <View style={styles.thumbnailContainer}>
+          <TouchableOpacity 
+            style={[styles.thumbnailWrapper, { borderColor: theme.colors.primary.main }]}
+            onPress={openImageModal}
+            activeOpacity={0.8}
+            accessibilityLabel="View full size image"
             accessibilityRole="button"
           >
-            <Text style={[styles.inspirationButtonText, { color: "#FFFFFF" }]}>
-              Get Ideas
-            </Text>
+            <Image 
+              source={{ uri: (localImageUri || formState.selectedImageUri)! }} 
+              style={styles.thumbnailImage}
+              resizeMode="cover"
+            />
           </TouchableOpacity>
         </View>
-        <View style={[styles.inputContainer, { 
-          backgroundColor: theme.colors.background.secondary,
-          borderColor: theme.colors.border.light 
-        }]}>
-          <TextInput
-            style={[styles.designInput, { color: theme.colors.text.primary }]}
-            value={formState.description}
-            onChangeText={formState.setDescription}
-            placeholder="Describe your design vision... e.g., 'Transform this into a modern home office with plants and natural lighting'"
-            placeholderTextColor={theme.colors.text.secondary}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            onFocus={scrollToTextInput}
-            maxLength={500}
-            accessibilityLabel="Design description input"
-            accessibilityHint="Enter a description of what you want to create in this space"
-          />
-        </View>
-        <View style={styles.characterCount}>
-          <Text style={[styles.characterCountText, { color: theme.colors.text.secondary }]}>
-            {formState.description.length}/500
-          </Text>
+
+        {/* Prompt area on the right */}
+        <View style={styles.promptContainer}>
+          <View style={[styles.inputContainer, { 
+            backgroundColor: theme.colors.background.secondary,
+            borderColor: theme.colors.border.light 
+          }]}>
+            <TextInput
+              style={[styles.designInput, { color: theme.colors.text.primary }]}
+              value={formState.description}
+              onChangeText={formState.setDescription}
+              placeholder="Describe your design vision... e.g., 'Transform this into a modern home office with plants and natural lighting'"
+              placeholderTextColor={theme.colors.text.secondary}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              maxLength={500}
+              accessibilityLabel="Design description input"
+              accessibilityHint="Enter a description of what you want to create in this space"
+            />
+          </View>
+          <View style={styles.characterCount}>
+            <Text style={[styles.characterCountText, { color: theme.colors.text.secondary }]}>
+              {formState.description.length}/500
+            </Text>
+          </View>
         </View>
       </View>
     </View>
   );
 
-  const renderStep3 = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.stepHeader}>
-        <Text style={[styles.stepTitle, { color: theme.colors.text.primary }]}>
-          Generate Design
+  const renderGenerateSection = () => (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+          Generate Your Design
         </Text>
-        <Text style={[styles.stepSubtitle, { color: theme.colors.text.secondary }]}>
-          Review and generate your AI transformation
+        <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
+          Review and create your AI transformation
         </Text>
       </View>
-    
-      {/* Large image preview like steps 1 and 2 */}
-      {(localImageUri || formState.selectedImageUri) && (
-        <View style={styles.step2ImageContainer}>
-          <View style={{ 
-            width: width - 60, 
-            height: width * 0.8, 
-            borderRadius: 20, 
-            overflow: 'hidden'
-          }}>
-            <Image 
-              source={{ uri: (localImageUri || formState.selectedImageUri)! }} 
-              style={{ width: '100%', height: '100%' }}
-              resizeMode="contain"
-              accessibilityLabel="Selected room image for design generation"
-            />
-          </View>
-        </View>
-      )}
       
-      {/* Design summary */}
-      <View style={[styles.designSummary, { backgroundColor: theme.colors.background.secondary }]}>
-        <Text style={[styles.summaryTitle, { color: theme.colors.text.primary }]}>
-          Design Summary
-        </Text>
-        <Text style={[styles.summaryText, { color: theme.colors.text.secondary }]}>
-          {formState.description}
-        </Text>
-      </View>
       
       {/* Generate button */}
       <TouchableOpacity
@@ -541,6 +626,80 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
     </View>
   );
 
+  const renderImageModal = () => (
+    <Modal
+      visible={isImageModalVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={closeImageModal}
+    >
+      <View style={styles.imageModalOverlay}>
+        <TouchableOpacity 
+          style={styles.imageModalBackground}
+          activeOpacity={1}
+          onPress={closeImageModal}
+        >
+          <View style={styles.imageModalContent}>
+            {/* Close button */}
+            <TouchableOpacity 
+              style={[styles.imageModalCloseButton, { backgroundColor: theme.colors.background.secondary }]}
+              onPress={closeImageModal}
+              accessibilityLabel="Close image modal"
+              accessibilityRole="button"
+            >
+              <Text style={[styles.imageModalCloseButtonText, { color: theme.colors.text.primary }]}>
+                ✕
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.imageModalImageContainer}
+              activeOpacity={1}
+              onPress={() => {}} // Prevent closing when tapping image
+            >
+              <Image 
+                source={{ uri: (localImageUri || formState.selectedImageUri)! }} 
+                style={styles.imageModalImage}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+            
+            {/* Action buttons */}
+            <View style={styles.imageModalActions}>
+              <TouchableOpacity 
+                style={[styles.imageModalButton, { backgroundColor: theme.colors.background.secondary }]}
+                onPress={() => {
+                  closeImageModal();
+                  pickImage();
+                }}
+                accessibilityLabel="Change photo"
+                accessibilityRole="button"
+              >
+                <Text style={[styles.imageModalButtonText, { color: theme.colors.text.primary }]}>
+                  Change Photo
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.imageModalButton, styles.imageModalButtonSecondary, { borderColor: theme.colors.primary.main }]}
+                onPress={() => {
+                  closeImageModal();
+                  takePhoto();
+                }}
+                accessibilityLabel="Retake photo"
+                accessibilityRole="button"
+              >
+                <Text style={[styles.imageModalButtonText, { color: theme.colors.primary.main }]}>
+                  Retake Photo
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+
   // ============================================================================
   // MAIN RENDER
   // ============================================================================
@@ -557,59 +716,63 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       
       <KeyboardAvoidingView 
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        enabled={true}
       >
-        <ScrollView 
-          ref={scrollViewRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={{ flexGrow: 1 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        <Animated.View 
+          style={[
+            { flex: 1 },
+            { opacity: fadeAnim }
+          ]}
         >
-        {/* Header */}
-        <View style={styles.header}>
-          <StepIndicator currentStep={currentStep} totalSteps={3} theme={theme} />
-        </View>
-
-        <View style={styles.mainContent}>
-          <PanGestureHandler
-            onHandlerStateChange={onSwipeGesture}
-            activeOffsetX={[-15, 15]}
-            failOffsetY={[-20, 20]}
+          <ScrollView 
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={true}
+            alwaysBounceVertical={false}
+            overScrollMode="auto"
           >
-            <View style={styles.stepContainer}>
-              {/* Step Content */}
-              {currentStep === 1 && renderStep1()}
-              {currentStep === 2 && renderStep2()}
-              {currentStep === 3 && renderStep3()}
+          {/* Page Header */}
+          <View style={styles.pageHeader}>
+            <Text style={[styles.pageTitle, { color: theme.colors.text.primary }]}>
+              Create Your Design
+            </Text>
+            <Text style={[styles.pageSubtitle, { color: theme.colors.text.secondary }]}>
+              Transform any space with AI-powered design
+            </Text>
+          </View>
 
-              {/* Error Display */}
-              <ErrorDisplay
-                error={formState.error}
-                onDismiss={() => formState.setError(null)}
-                theme={theme}
-              />
-            </View>
-          </PanGestureHandler>
+          {/* Main Content Sections */}
+          <View style={styles.contentContainer}>
+            {/* Show photo capture section first */}
+            {!(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && renderPhotoCaptureSection()}
+            
+            {/* Show processing state */}
+            {formState.isProcessingImage && renderPhotoCaptureSection()}
+            
+            {/* Show thumbnail + prompt section once photo is selected */}
+            {(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && (
+              <>
+                {renderThumbnailAndPromptSection()}
+                {renderGenerateSection()}
+              </>
+            )}
+          </View>
 
-          {/* Navigation Arrows */}
-          <SwipeIndicator
-            direction="left"
-            onPress={goToPreviousStep}
+          {/* Error Display */}
+          <ErrorDisplay
+            error={formState.error}
+            onDismiss={() => formState.setError(null)}
             theme={theme}
-            visible={currentStep > 1}
           />
-          
-          <SwipeIndicator
-            direction="right"
-            onPress={goToNextStep}
-            theme={theme}
-            animatedValue={animations.glowAnim}
-            visible={currentStep < 3 && formState.canProceedToNext(currentStep)}
-          />
-        </View>
-        </ScrollView>
+          </ScrollView>
+        </Animated.View>
+        
+        {/* Loading Screen */}
+        {formState.isGenerating && renderLoadingScreen()}
       </KeyboardAvoidingView>
 
       {/* Inspiration Modal */}
@@ -619,6 +782,9 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         onSelectInspiration={selectInspiration}
         theme={theme}
       />
+
+      {/* Image Modal */}
+      {renderImageModal()}
     </SafeAreaView>
   );
 };
@@ -639,85 +805,56 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  mainContent: {
-    flex: 1,
-  },
-  stepContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-  },
-  
-  // Header
-  header: {
-    paddingTop: 60,
-    paddingBottom: 12,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  
-  // Step Indicator
-  stepIndicatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepIndicatorItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  stepIndicatorCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stepIndicatorText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  stepIndicatorLine: {
-    width: 40,
-    height: 2,
-    marginHorizontal: 8,
-  },
-  
-  // Step Content
-  stepContent: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    paddingTop: 20,
-  },
-  stepContentTopAligned: {
-    flex: 1,
-    justifyContent: 'flex-start',
-  },
-  stepContentCentered: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  stepScrollView: {
-    flex: 1,
-  },
-  stepScrollContent: {
+  scrollContent: {
     flexGrow: 1,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  
+  // Page Header
+  pageHeader: {
+    paddingTop: 60,
     paddingBottom: 20,
-    minHeight: '100%',
-  },
-  stepHeader: {
+    paddingHorizontal: 16,
     alignItems: 'center',
-    marginBottom: 36,
   },
-  stepTitle: {
-    fontSize: 28,
+  pageTitle: {
+    fontSize: 32,
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: -0.5,
     marginBottom: 8,
   },
-  stepSubtitle: {
+  pageSubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 22,
+    opacity: 0.8,
+    maxWidth: width - 80,
+  },
+  
+  // Content Container
+  contentContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  
+  // Sections
+  section: {
+    marginBottom: 40,
+  },
+  sectionHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 22,
@@ -725,12 +862,78 @@ const styles = StyleSheet.create({
     maxWidth: width - 80,
   },
 
-  // Step 1 - Upload
+  // Photo Capture Section
+  photoCaptureSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: height * 0.4,
+  },
+  processingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  processingText: {
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+
+  // Thumbnail and Prompt Section
+  thumbnailPromptSection: {
+    marginBottom: 30,
+  },
+  promptHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  promptTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    flex: 1,
+  },
+  thumbnailPromptContainer: {
+    flexDirection: width < 400 ? 'column' : 'row', // Stack on very small screens
+    gap: width < 350 ? 8 : width < 400 ? 12 : 16, // Smaller gaps on very small screens
+    alignItems: width < 400 ? 'center' : 'flex-start',
+  },
+  thumbnailContainer: {
+    alignItems: 'center',
+    width: width < 400 ? '100%' : Math.min(180, width * 0.4), // Full width on small screens
+  },
+  thumbnailWrapper: {
+    width: width < 350 ? Math.min(160, width * 0.5) : width < 400 ? Math.min(200, width * 0.6) : Math.min(160, width * 0.4), // Progressive sizing
+    height: width < 350 ? 120 : width < 400 ? 140 : 250, // Progressive height scaling
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  promptContainer: {
+    flex: 1,
+    width: width < 400 ? '100%' : undefined, // Full width on small screens
+  },
+
+
+  // Upload Buttons
   uploadButtons: {
     flexDirection: 'row',
     gap: 16,
     width: '100%',
-    paddingHorizontal: 30,
     marginTop: 20,
   },
   uploadButton: {
@@ -750,16 +953,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Step 2 Image Container
-  step2ImageContainer: {
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-
+  // Input Section
   inputSection: {
     justifyContent: 'flex-start',
     marginTop: 10,
-    minHeight: 200,
   },
   inputHeader: {
     flexDirection: 'row',
@@ -775,10 +972,10 @@ const styles = StyleSheet.create({
   inspirationButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 6,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -789,14 +986,14 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   inspirationButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   inputContainer: {
     borderRadius: 16,
     borderWidth: 2,
     padding: 16,
-    minHeight: 140,
+    height: width < 350 ? 120 : width < 400 ? 140 : 250, // Progressive height matching
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -809,7 +1006,7 @@ const styles = StyleSheet.create({
   designInput: {
     fontSize: 16,
     lineHeight: 22,
-    minHeight: 108,
+    height: width < 350 ? 88 : width < 400 ? 108 : 218, // Progressive height minus padding
     textAlignVertical: 'top',
   },
   characterCount: {
@@ -822,48 +1019,12 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 
-  // Step 3 - Generate
-  step3Content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-  },
-  step3ImageContainer: {
-    width: 160,
-    height: 160,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  step3PreviewImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  designSummary: {
-    borderRadius: 16,
-    padding: 20,
-    width: '100%',
-    maxWidth: 400,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  summaryText: {
-    fontSize: 16,
-    lineHeight: 24,
-    opacity: 0.9,
-  },
 
   // Generate Button
   generateButton: {
     borderRadius: 20,
     overflow: 'hidden',
     marginTop: 24,
-    marginBottom: 20,
   },
   gradientGenerateButton: {
     paddingVertical: 18,
@@ -891,6 +1052,226 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-
-
+  // Image Modal
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalBackground: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    position: 'relative',
+  },
+  imageModalCloseButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  imageModalCloseButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  imageModalImageContainer: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalImage: {
+    width: '100%',
+    height: '100%',
+    maxWidth: width - 40,
+    maxHeight: height - 200,
+  },
+  imageModalActions: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  imageModalButton: {
+    flex: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    maxWidth: 150,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  imageModalButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+  },
+  imageModalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  
+  // Loading Screen Styles
+  loadingScreen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingMainContainer: {
+    width: '100%',
+    maxWidth: 400,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+  },
+  loadingHeader: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  loadingTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  loadingSubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    opacity: 0.8,
+    fontWeight: '400',
+  },
+  imagePreviewContainer: {
+    marginBottom: 40,
+    alignItems: 'center',
+  },
+  imagePreview: {
+    width: 160,
+    height: 160,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  gradientBorder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+    padding: 3,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 13,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  processingSteps: {
+    width: '100%',
+    marginBottom: 40,
+  },
+  processingStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 8,
+  },
+  stepIcon: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 16,
+  },
+  stepIconText: {
+    fontSize: 8,
+    color: '#FFFFFF',
+  },
+  stepText: {
+    fontSize: 14,
+    flex: 1,
+    fontWeight: '400',
+    opacity: 0.9,
+  },
+  progressSection: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  progressBarContainer: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  progressBar: {
+    width: '100%',
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '400',
+    opacity: 0.7,
+    textAlign: 'center',
+  },
 });
