@@ -13,7 +13,9 @@ import {
   Modal,
   TextInput,
   Animated,
+  FlatList,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +23,7 @@ import { Image as ExpoImage } from 'expo-image';
 // import * as Haptics from 'expo-haptics';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
 import { endpoints } from '../config/api';
@@ -31,30 +34,11 @@ const { width, height } = Dimensions.get('window');
 // TYPES & INTERFACES
 // ============================================================================
 type ResultScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Result'>;
+type ResultScreenRouteProp = RouteProp<RootStackParamList, 'Result'>;
 
 interface ResultScreenProps {
   navigation: ResultScreenNavigationProp;
-  route: {
-    params: {
-      generatedImage: string;
-      originalImage: string;
-      products: Array<{
-        name: string;
-        type: string;
-        qty: number;
-        color?: string;
-        estPriceUSD?: number;
-        keywords?: string[];
-        placement?: {
-          note?: string;
-          bboxNorm?: number[];
-        };
-        amazonLink?: string;
-      }>;
-      designId?: string;
-      description: string;
-    };
-  };
+  route: ResultScreenRouteProp;
 }
 
 // ============================================================================
@@ -65,7 +49,13 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   // STATE & HOOKS
   // ============================================================================
   const { theme } = useTheme();
-  const { generatedImage, originalImage, products, designId, description } = route.params;
+  const { 
+    generatedImage = '', 
+    originalImage = '', 
+    products = [], 
+    designId = '', 
+    description = ''
+  } = route.params;
   
   // Image comparison state
   const [isShowingOriginal, setIsShowingOriginal] = useState(false);
@@ -75,7 +65,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   const [variations, setVariations] = useState<any[]>([]);
   
   // Products state (can be updated after edits)
-  const [currentProducts, setCurrentProducts] = useState(route.params.products);
+  const [currentProducts, setCurrentProducts] = useState(route?.params?.products || []);
   
   // Image preloading state
   const [isPreloading, setIsPreloading] = useState(false);
@@ -84,6 +74,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalImageType, setModalImageType] = useState<'original' | 'transformed'>('transformed');
+  const [lastVariationIndex, setLastVariationIndex] = useState(0);
   
   // Shopping list state
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
@@ -344,9 +335,6 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     setIsModalVisible(false);
   };
 
-  const toggleModalImage = () => {
-    setModalImageType(modalImageType === 'original' ? 'transformed' : 'original');
-  };
 
   const toggleCheckbox = async (index: number) => {
     setCheckedItems(prev => {
@@ -386,73 +374,34 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
         resizeMode="cover"
       />
       
-      {/* Simplified Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={[styles.backButtonText, { color: theme.colors.text.primary }]}>‹</Text>
-        </TouchableOpacity>
-        
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text.primary }]}>
-            Your Design
-          </Text>
-        </View>
-        
-        {/* Edit Design Button */}
-        <TouchableOpacity
-          style={[
-            styles.headerEditButton, 
-            { 
-              backgroundColor: isEditing ? theme.colors.text.secondary : theme.colors.primary.main,
-              opacity: isEditing ? 0.7 : 1
-            }
-          ]}
-          onPress={handleEditDesign}
-          disabled={isEditing}
-          activeOpacity={0.8}
-        >
-          {isEditing ? (
-            <ActivityIndicator size="small" color={theme.colors.primary.contrast} />
-          ) : (
-            <Text style={[styles.headerEditButtonText, { color: theme.colors.primary.contrast }]}>
-              Edit
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
       
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Main Image Section */}
-        <View style={styles.imageSection}>
-          {/* Variation Counter */}
-          {!isShowingOriginal && (variations.length > 0 || generatedImage) && (
-            <View style={styles.variationCounter}>
-              <Text style={[styles.variationCounterText, { color: theme.colors.text.primary }]}>
-                {currentVariationIndex === 0 ? 'Generated Design' : `Variation ${currentVariationIndex}`}
-              </Text>
-              <Text style={[styles.variationCounterSubtext, { color: theme.colors.text.secondary }]}>
-                {variations.length + 1} total
-              </Text>
-            </View>
-          )}
+        {/* Hero Section - Image + Prompt fills viewport */}
+        <View style={styles.heroSection}>
+          {/* Page Header - Matching DesignScreen */}
+          <View style={styles.pageHeader}>
+            <Text style={[styles.pageTitle, { color: theme.colors.text.primary }]}>
+              Your Design
+            </Text>
+            <Text style={[styles.pageSubtitle, { color: theme.colors.text.secondary }]}>
+              AI-powered transformation complete
+            </Text>
+          </View>
           
-          {/* Original Photo Counter */}
-          {isShowingOriginal && (
-            <View style={styles.variationCounter}>
-              <Text style={[styles.variationCounterText, { color: theme.colors.text.primary }]}>
-                Original Photo
-              </Text>
-              <Text style={[styles.variationCounterSubtext, { color: theme.colors.text.secondary }]}>
-                Your space
-              </Text>
-            </View>
-          )}
+          {/* Main Image Section */}
+          <View style={styles.imageSection}>
+          {/* Variation Counter - Always show for consistent spacing */}
+          <View style={styles.variationCounter}>
+            <Text style={[styles.variationCounterText, { color: theme.colors.text.primary }]}>
+              {isShowingOriginal 
+                ? 'Original Photo' 
+                : (currentVariationIndex === 0 ? 'Generated Design' : `Variation ${currentVariationIndex}`)
+              }
+            </Text>
+          </View>
           
           <PanGestureHandler
             onHandlerStateChange={onSwipeGesture}
@@ -460,76 +409,38 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             failOffsetY={[-20, 20]}
           >
             <TouchableOpacity 
-              style={styles.imageContainer}
+              style={styles.imageTouchable}
               onPress={toggleImage}
               activeOpacity={0.95}
             >
-            {isShowingOriginal ? (
-              originalImage ? (
-                <View style={styles.imageWrapper}>
-                  {/* Animated Pulsing Glow Effect - Behind Image */}
-                  <Animated.View 
-                    style={[
-                      styles.glowEffect,
-                      {
-                        shadowOpacity: glowAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.3, 0.8],
-                        }),
-                        shadowRadius: glowAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [15, 35],
-                        }),
-                      }
-                    ]}
+            {/* Simple Image Container with Button Overlays */}
+            <View style={styles.simpleImageContainer}>
+              {isShowingOriginal ? (
+                originalImage ? (
+                  <ExpoImage 
+                    source={{ uri: getCachedImageUri(originalImage, -1) }} 
+                    style={styles.simpleImage}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
                   />
-                  <View style={styles.imageContainerFixed}>
-                    <ExpoImage 
-                      source={{ uri: getCachedImageUri(originalImage, -1) }} 
-                      style={styles.mainImageFixed}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                    />
+                ) : (
+                  <View style={styles.noImagePlaceholder}>
+                    <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
+                      No original image
+                    </Text>
                   </View>
-                </View>
+                )
               ) : (
-                <View style={styles.noImagePlaceholder}>
-                  <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
-                    No original image
-                  </Text>
-                </View>
-              )
-            ) : (
-              currentImage ? (
-                  <View style={styles.imageWrapper}>
-                    {/* Animated Pulsing Glow Effect - Behind Image */}
-                    <Animated.View 
-                      style={[
-                        styles.glowEffect,
-                        {
-                          shadowOpacity: glowAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.3, 0.8],
-                          }),
-                          shadowRadius: glowAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [15, 35],
-                          }),
-                        }
-                      ]}
-                    />
-                    <View style={styles.imageContainerFixed}>
-                      <ExpoImage 
-                        source={{ 
-                          uri: getCachedImageUri(currentImage, currentVariationIndex)
-                        }} 
-                        style={styles.mainImageFixed}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                        key={`variation-${currentVariationIndex}`}
-                      />
-                    </View>
-                  </View>
+                currentImage ? (
+                  <ExpoImage 
+                    source={{ 
+                      uri: getCachedImageUri(currentImage, currentVariationIndex)
+                    }} 
+                    style={styles.simpleImage}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    key={`variation-${currentVariationIndex}`}
+                  />
                 ) : (
                   <View style={styles.noImagePlaceholder}>
                     <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
@@ -537,88 +448,122 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                     </Text>
                   </View>
                 )
-            )}
-            
-            {/* Image Toggle Indicator */}
-            <View style={styles.imageToggleIndicator}>
-              <View style={[styles.toggleDot, { 
-                backgroundColor: isShowingOriginal ? theme.colors.text.secondary : theme.colors.primary.main 
-              }]} />
-              <View style={[styles.toggleDot, { 
-                backgroundColor: isShowingOriginal ? theme.colors.primary.main : theme.colors.text.secondary 
-              }]} />
+              )}
+              
+              {/* Variation Dots - Centered at Bottom */}
+              <View style={styles.simpleToggleDots}>
+                {isShowingOriginal ? (
+                  // Show single dot for original photo
+                  <View style={[styles.toggleDot, { backgroundColor: theme.colors.primary.main }]} />
+                ) : (
+                  // Show dots for variations
+                  Array.from({ length: variations.length + 1 }, (_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.toggleDot,
+                        {
+                          backgroundColor: index === currentVariationIndex 
+                            ? theme.colors.primary.main 
+                            : theme.colors.text.secondary
+                        }
+                      ]}
+                    />
+                  ))
+                )}
+              </View>
+              
+              {/* Edit Button - Top Left Corner */}
+              <TouchableOpacity
+                style={[styles.simpleEditButton, { backgroundColor: theme.colors.primary.main }]}
+                onPress={handleEditDesign}
+                disabled={isEditing}
+                activeOpacity={0.8}
+              >
+                {isEditing ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary.contrast} />
+                ) : (
+                  <Text style={[styles.simpleButtonText, { color: theme.colors.primary.contrast }]}>
+                    ✏️
+                  </Text>
+                )}
+              </TouchableOpacity>
+              
+              {/* Expand Button - Top Right Corner */}
+              <TouchableOpacity
+                style={[styles.simpleExpandButton, { backgroundColor: theme.colors.primary.main }]}
+                onPress={() => openModal(isShowingOriginal ? 'original' : 'transformed')}
+              >
+                <Text style={[styles.simpleButtonText, { color: theme.colors.primary.contrast }]}>
+                  ⛶
+                </Text>
+              </TouchableOpacity>
+              
+              {/* Share Button - Bottom Right Corner */}
+              <TouchableOpacity
+                style={[styles.simpleShareButton, { backgroundColor: theme.colors.primary.main }]}
+                onPress={shareImage}
+              >
+                <Text style={[styles.simpleButtonText, { color: theme.colors.primary.contrast }]}>
+                  ⤴
+                </Text>
+              </TouchableOpacity>
             </View>
-            
-            {/* Expand Button - Top Left */}
-            <TouchableOpacity
-              style={[styles.expandButton, styles.expandButtonTopLeft, { backgroundColor: theme.colors.primary.main }]}
-              onPress={() => openModal(isShowingOriginal ? 'original' : 'transformed')}
-            >
-              <Text style={[styles.expandButtonText, { color: theme.colors.primary.contrast }]}>
-                ⛶
-              </Text>
-            </TouchableOpacity>
-            
-            {/* Share Button - Bottom Right */}
-            <TouchableOpacity
-              style={[styles.shareButton, { backgroundColor: theme.colors.primary.main }]}
-              onPress={shareImage}
-            >
-              <Text style={[styles.shareButtonText, { color: theme.colors.primary.contrast }]}>
-                ⤴
-              </Text>
-            </TouchableOpacity>
           </TouchableOpacity>
           </PanGestureHandler>
           
-          {/* Variation Thumbnail Indicators */}
-          {!isShowingOriginal && (variations.length > 0 || generatedImage) && (
-            <View style={styles.variationIndicators}>
-              {Array.from({ length: variations.length + 1 }, (_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.variationDot,
-                    {
-                      backgroundColor: index === currentVariationIndex 
-                        ? theme.colors.primary.main 
-                        : theme.colors.text.secondary
-                    }
-                  ]}
-                />
-              ))}
-            </View>
-          )}
           
-          {/* Swipe Hint */}
-          {!isShowingOriginal && variations.length > 0 && (
-            <View style={styles.swipeHint}>
+          {/* Swipe Hint - Always show for consistent spacing */}
+          <View style={styles.swipeHint}>
+            {isShowingOriginal ? (
               <Text style={[styles.swipeHintText, { color: theme.colors.text.secondary }]}>
-                ← Swipe to see variations →
+                Tap to switch to generated design
               </Text>
-              {isPreloading && (
-                <View style={styles.preloadIndicator}>
-                  <ActivityIndicator size="small" color={theme.colors.primary.main} />
-                  <Text style={[styles.preloadText, { color: theme.colors.text.secondary }]}>
-                    Loading variations...
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
+            ) : variations.length > 0 ? (
+              <>
+                <Text style={[styles.swipeHintText, { color: theme.colors.text.secondary }]}>
+                  ← Swipe to see variations →
+                </Text>
+                {isPreloading && (
+                  <View style={styles.preloadIndicator}>
+                    <ActivityIndicator size="small" color={theme.colors.primary.main} />
+                    <Text style={[styles.preloadText, { color: theme.colors.text.secondary }]}>
+                      Loading variations...
+                    </Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <Text style={[styles.swipeHintText, { color: theme.colors.text.secondary }]}>
+                Tap to switch to original photo
+              </Text>
+            )}
+          </View>
         </View>
 
-        {/* Prompt Text - Under the image */}
-        {!isShowingOriginal && (variations.length > 0 || generatedImage) && (
+          {/* Prompt Text - Under the image - Always show for consistent spacing */}
           <View style={styles.promptTextSection}>
-            <Text style={[styles.promptTextLabel, { color: theme.colors.text.secondary }]}>
-              Prompt used:
-            </Text>
-            <Text style={[styles.promptText, { color: theme.colors.text.primary }]}>
-              {getCurrentVariationPrompt()}
-            </Text>
+            {isShowingOriginal ? (
+              <>
+                <Text style={[styles.promptTextLabel, { color: theme.colors.text.secondary }]}>
+                  Original Photo
+                </Text>
+                <Text style={[styles.promptText, { color: theme.colors.text.primary }]}>
+                  Your space before AI transformation. This is how your room looked originally before we applied the design changes.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.promptTextLabel, { color: theme.colors.text.secondary }]}>
+                  Prompt used:
+                </Text>
+                <Text style={[styles.promptText, { color: theme.colors.text.primary }]}>
+                  {getCurrentVariationPrompt()}
+                </Text>
+              </>
+            )}
           </View>
-        )}
+        </View>
 
         {/* Products Section - Always visible */}
         {currentProducts && currentProducts.length > 0 && (
@@ -633,7 +578,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             </View>
             
             <View style={styles.productsList}>
-              {currentProducts.map((product, index) => {
+              {currentProducts.map((product: any, index: number) => {
                 const isChecked = checkedItems.has(index);
                 return (
                   <View key={index} style={[styles.productItem, { 
@@ -708,63 +653,146 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
         )}
       </ScrollView>
 
-      {/* Full-Screen Image Modal */}
+      {/* Basic Image Modal */}
       <Modal
         visible={isModalVisible}
-        transparent={true}
-        animationType="fade"
+        transparent={false}
+        animationType="slide"
         onRequestClose={closeModal}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={closeModal}
-            >
-              <Text style={[styles.modalCloseButtonText, { color: theme.colors.text.primary }]}>
-                ✕
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.modalToggleButton}
-              onPress={toggleModalImage}
-            >
-              <Text style={[styles.modalToggleButtonText, { color: theme.colors.text.primary }]}>
-                {modalImageType === 'original' ? 'Show Transformed' : 'Show Original'}
-              </Text>
-            </TouchableOpacity>
+        <View style={[styles.basicModalContainer, { backgroundColor: theme.colors.background.primary }]}>
+          {/* Gradient Overlay */}
+          <LinearGradient
+            colors={[
+              `${theme.colors.background.primary}CC`, 
+              'transparent', 
+              'transparent', 
+              `${theme.colors.background.primary}CC`
+            ]}
+            locations={[0, 0.1, 0.7, 1]}
+            style={styles.basicModalGradient}
+          />
+          
+          {/* Close Button */}
+          <TouchableOpacity
+            style={[
+              styles.basicModalCloseButton, 
+              { 
+                backgroundColor: theme.colors.primary.main,
+                shadowColor: theme.colors.shadow
+              }
+            ]}
+            onPress={closeModal}
+          >
+            <Text style={[styles.basicModalCloseText, { color: theme.colors.primary.contrast }]}>✕</Text>
+          </TouchableOpacity>
+          
+          {/* Image */}
+          <View style={styles.basicModalImageContainer}>
+            <View style={styles.basicModalImageWrapper}>
+              {modalImageType === 'original' ? (
+                originalImage ? (
+                  <ExpoImage 
+                    source={{ uri: getCachedImageUri(originalImage, -1) }} 
+                    style={styles.basicModalImage} 
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                ) : (
+                  <Text>No original image</Text>
+                )
+              ) : (
+                currentImage ? (
+                  <ExpoImage 
+                    source={{ uri: getCachedImageUri(currentImage, currentVariationIndex) }} 
+                    style={styles.basicModalImage} 
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                ) : (
+                  <Text>No image available</Text>
+                )
+              )}
+            </View>
           </View>
           
-          <View style={styles.modalImageContainer}>
-            {modalImageType === 'original' ? (
-              originalImage ? (
-                <ExpoImage 
-                  source={{ uri: getCachedImageUri(originalImage, -1) }} 
-                  style={styles.modalImage} 
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                />
-              ) : (
-                <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
-                  No original image available
-                </Text>
-              )
-            ) : (
-              generatedImage ? (
-                <ExpoImage 
-                  source={{ uri: getCachedImageUri(generatedImage, 0) }} 
-                  style={styles.modalImage} 
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                />
-              ) : (
-                <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
-                  No image available
-                </Text>
-              )
-            )}
-          </View>
+          {/* Navigation Buttons - Only show when viewing variations */}
+          {modalImageType === 'transformed' && variations.length > 0 && (
+            <View style={styles.basicModalNavigation}>
+              <TouchableOpacity
+                style={[
+                  styles.basicModalNavButton, 
+                  { 
+                    backgroundColor: currentVariationIndex === 0 ? theme.colors.text.secondary : theme.colors.primary.main,
+                    shadowColor: theme.colors.shadow
+                  }
+                ]}
+                onPress={() => {
+                  if (currentVariationIndex > 0) {
+                    setCurrentVariationIndex(currentVariationIndex - 1);
+                  }
+                }}
+                disabled={currentVariationIndex === 0}
+              >
+                <Text style={[styles.basicModalNavText, { color: theme.colors.primary.contrast }]}>←</Text>
+              </TouchableOpacity>
+              
+              <Text style={[
+                styles.basicModalNavLabel, 
+                { 
+                  color: theme.colors.text.primary,
+                  backgroundColor: theme.colors.background.secondary,
+                  borderColor: theme.colors.border
+                }
+              ]}>
+                {currentVariationIndex === 0 ? 'Original' : `Variation ${currentVariationIndex}`}
+              </Text>
+              
+              <TouchableOpacity
+                style={[
+                  styles.basicModalNavButton, 
+                  { 
+                    backgroundColor: currentVariationIndex >= variations.length ? theme.colors.text.secondary : theme.colors.primary.main,
+                    shadowColor: theme.colors.shadow
+                  }
+                ]}
+                onPress={() => {
+                  if (currentVariationIndex < variations.length) {
+                    setCurrentVariationIndex(currentVariationIndex + 1);
+                  }
+                }}
+                disabled={currentVariationIndex >= variations.length}
+              >
+                <Text style={[styles.basicModalNavText, { color: theme.colors.primary.contrast }]}>→</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {/* Simple Toggle Button */}
+          <TouchableOpacity
+            style={[
+              styles.basicModalToggleButton,
+              {
+                backgroundColor: theme.colors.primary.main,
+                shadowColor: theme.colors.shadow
+              }
+            ]}
+            onPress={() => {
+              if (modalImageType === 'original') {
+                // When switching to variations, go back to last variation we were on
+                setCurrentVariationIndex(lastVariationIndex);
+                setModalImageType('transformed');
+              } else {
+                // When switching to original, remember current variation
+                setLastVariationIndex(currentVariationIndex);
+                setModalImageType('original');
+              }
+            }}
+          >
+            <Text style={[styles.basicModalToggleText, { color: theme.colors.primary.contrast }]}>
+              {modalImageType === 'original' ? 'Show Variations' : 'Show Original'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </Modal>
 
@@ -866,55 +894,55 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   
-  // Header
-  header: {
-    paddingTop: 60,
-    paddingBottom: 24,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    position: 'relative',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 60,
-    left: 24,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  // Hero Section - Fills viewport
+  heroSection: {
+    minHeight: height - 100, // Account for status bar and bottom nav
     justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1001,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingBottom: 20,
   },
-  backButtonText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  headerContent: {
+  
+  // Page Header - Matching DesignScreen
+  pageHeader: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 16,
     alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 24,
+  pageTitle: {
+    fontSize: 32,
     fontWeight: '700',
     textAlign: 'center',
-    letterSpacing: -0.3,
-    marginBottom: 4,
+    letterSpacing: -0.5,
+    marginBottom: 8,
   },
-  headerSubtitle: {
+  pageSubtitle: {
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 22,
     opacity: 0.8,
     maxWidth: width - 80,
+  },
+  
+  // Floating Edit Button
+  floatingEditButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  floatingEditButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   
   // Scroll Content
@@ -926,15 +954,18 @@ const styles = StyleSheet.create({
   
   // Image Section
   imageSection: {
-    marginTop: 24,
-    marginBottom: 32,
-    paddingHorizontal: 24,
+    marginTop: 8,
+    marginBottom: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
   },
   
   // Variation Counter
   variationCounter: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 4,
   },
   variationCounterContent: {
     flexDirection: 'row',
@@ -953,12 +984,13 @@ const styles = StyleSheet.create({
   
   // Prompt Text Section
   promptTextSection: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 0,
+    paddingVertical: 12,
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
     borderRadius: 16,
-    marginHorizontal: 24,
+    marginHorizontal: 20,
+    minHeight: 60, // Minimum height for 2 lines
   },
   promptTextLabel: {
     fontSize: 13,
@@ -983,20 +1015,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     minHeight: 80,
   },
-  imageContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageWrapper: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   glowEffect: {
     position: 'absolute',
-    width: width - 48,
-    height: width * 1.2,
+    width: width - 80,
+    aspectRatio: 4/3,
     borderRadius: 24,
     shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 0 },
@@ -1011,20 +1033,91 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     zIndex: 2,
   },
-  imageContainerFixed: {
-    width: width - 48,
-    height: width * 1.2,
-    borderRadius: 24,
-    overflow: 'hidden',
-    zIndex: 2,
+  imageTouchable: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mainImageFixed: {
-    width: '100%',
-    height: '100%',
+    width: width * 1.25,
+    aspectRatio: 4/3,
+    borderRadius: 0,
+  },
+  // Simple Image Container Styles
+  simpleImageContainer: {
+    position: 'relative',
+    alignSelf: 'center',
+  },
+  simpleImage: {
+    width: (width - 40) * 0.85,
+    height: (width - 40) * 1.2 * 0.85,
+  },
+  simpleToggleDots: {
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  simpleEditButton: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  simpleExpandButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  simpleShareButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  simpleButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
   },
   noImagePlaceholder: {
-    width: width - 48,
-    height: width * 1.2,
+    width: width - 80,
+    height: (width - 80) * 0.75,
     borderRadius: 24,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
@@ -1040,9 +1133,11 @@ const styles = StyleSheet.create({
   imageToggleIndicator: {
     position: 'absolute',
     bottom: 20,
-    left: '50%',
-    transform: [{ translateX: -20 }],
+    left: 0,
+    right: 0,
     flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 8,
   },
   toggleDot: {
@@ -1082,8 +1177,8 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   expandButtonTopLeft: {
-    top: 16,
-    left: 16,
+    top: 8,
+    left: 8, // Position at screen edge
   },
   expandButtonText: {
     fontSize: 20,
@@ -1093,8 +1188,8 @@ const styles = StyleSheet.create({
   // Share Button
   shareButton: {
     position: 'absolute',
-    bottom: 16,
-    right: 16,
+    bottom: 8,
+    right: 8, // Position at screen edge
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -1273,9 +1368,17 @@ const styles = StyleSheet.create({
   },
   
   // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1313,9 +1416,232 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
+  modalCarouselContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCarouselItem: {
+    width: width,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalCarouselDots: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalCarouselDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  // Simple Modal Styles
+  simpleModalImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  simpleModalImageWrapper: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  simpleModalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  simpleModalPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  simpleModalText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  simpleModalNavigation: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 20,
+  },
+  simpleModalNavButton: {
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  simpleModalNavText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  simpleModalNavLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  simpleModalHint: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  simpleModalHintText: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: 'white',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  // Themed Modal Styles
+  basicModalContainer: {
+    flex: 1,
+  },
+  basicModalGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  basicModalCloseButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    right: 20,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  basicModalCloseText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  basicModalImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 100 : 80,
+    paddingBottom: 200,
+    zIndex: 2,
+  },
+  basicModalImageWrapper: {
+    width: (width - 40) * 1.1,
+    height: (width - 40) * 1.2 * 1.1,
+  },
+  basicModalImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  basicModalToggleButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 50 : 30,
+    left: 20,
+    right: 20,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 10,
+  },
+  basicModalToggleText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  basicModalNavigation: {
+    position: 'absolute',
+    bottom: 120,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  basicModalNavButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  basicModalNavButtonDisabled: {
+    // Will be styled dynamically
+  },
+  basicModalNavText: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  basicModalNavLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
   modalImage: {
     width: '100%',
     height: '100%',
+  },
+  modalVariationDots: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalVariationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  modalSwipeHint: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  modalSwipeHintText: {
+    fontSize: 12,
+    opacity: 0.6,
+    fontStyle: 'italic',
   },
   
   // Edit Modal Styles
@@ -1400,35 +1726,13 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   
-  // New UX Improvement Styles
-  headerEditButton: {
-    position: 'absolute',
-    top: 60,
-    right: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1001,
-    minWidth: 70,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  headerEditButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
   
   
   // Swipe Hint
   swipeHint: {
     alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 4,
   },
   swipeHintText: {
     fontSize: 12,
@@ -1449,29 +1753,29 @@ const styles = StyleSheet.create({
   // Bottom Navigation
   bottomNav: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    paddingBottom: 34,
-    gap: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingBottom: Platform.OS === 'android' ? 24 : 12,
+    gap: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.1)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   bottomNavButton: {
     flex: 1,
-    paddingVertical: 18,
-    borderRadius: 20,
+    paddingVertical: 8,
+    borderRadius: 12,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   bottomNavButtonText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
   },
 });

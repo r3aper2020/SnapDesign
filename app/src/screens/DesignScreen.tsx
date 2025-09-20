@@ -413,7 +413,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
                 <Text style={styles.stepIconText}>●</Text>
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
-                Analyzing image composition
+                Analyzing your space
               </Text>
             </View>
             
@@ -422,7 +422,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
                 <Text style={styles.stepIconText}>●</Text>
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
-                Processing design requirements
+                Searching for products for your space
               </Text>
             </View>
             
@@ -431,7 +431,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
                 <Text style={styles.stepIconText}>●</Text>
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
-                Generating AI transformation
+                Generating your design based on similar products found
               </Text>
             </View>
           </View>
