@@ -31,6 +31,7 @@ export type RootStackParamList = {
       amazonLink?: string;
     }>;
     designId?: string;
+    description: string;
   };
   SavedDesigns: undefined;
   Settings: undefined;

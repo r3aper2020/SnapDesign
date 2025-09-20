@@ -5,6 +5,7 @@ export const API_BASE_URL: string = (Constants.expoConfig?.extra as any)?.apiBas
 export const endpoints = {
   health: (): string => `${API_BASE_URL}/design/health`,
   decorate: (): string => `${API_BASE_URL}/design/decorate`,
+  edit: (): string => `${API_BASE_URL}/design/edit`,
   search: (): string => `${API_BASE_URL}/design/search`,
   // Authentication endpoints
   auth: {

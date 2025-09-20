@@ -38,6 +38,29 @@ export interface SavedDesign {
   tokenUsage?: TokenUsage;
 }
 
+export interface SavedEdit {
+  id: string;
+  designId: string;
+  timestamp: number;
+  editInstructions: string;
+  originalImage: string;
+  editedImage: string;
+  products: Array<{
+    name: string;
+    type: string;
+    qty: number;
+    color?: string;
+    estPriceUSD?: number;
+    keywords: string[];
+    placement?: {
+      note?: string;
+      bboxNorm?: number[];
+    };
+    amazonLink?: string;
+  }>;
+  tokenUsage?: TokenUsage;
+}
+
 const DB_NAME = 'designs.db';
 
 class DesignStorage {
@@ -80,6 +103,18 @@ class DesignStorage {
       CREATE TABLE IF NOT EXISTS checkbox_states (
         design_id TEXT PRIMARY KEY,
         checked_items TEXT NOT NULL,
+        FOREIGN KEY (design_id) REFERENCES designs (id) ON DELETE CASCADE
+      );
+      
+      CREATE TABLE IF NOT EXISTS edits (
+        id TEXT PRIMARY KEY,
+        design_id TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        editInstructions TEXT NOT NULL,
+        originalImage TEXT NOT NULL,
+        editedImage TEXT NOT NULL,
+        products TEXT NOT NULL,
+        tokenUsage TEXT,
         FOREIGN KEY (design_id) REFERENCES designs (id) ON DELETE CASCADE
       );
     `);
@@ -134,6 +169,48 @@ class DesignStorage {
     } catch (error) {
       console.error('❌ Error saving design:', error);
       throw new Error('Failed to save design');
+    }
+  }
+
+  // Save a new edit
+  async saveEdit(edit: Omit<SavedEdit, 'id' | 'timestamp'>): Promise<SavedEdit> {
+    try {
+      await this.initDatabase();
+      
+      const savedEdit: SavedEdit = {
+        ...edit,
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+      };
+
+      await this.db!.runAsync(
+        `INSERT INTO edits (id, design_id, timestamp, editInstructions, originalImage, editedImage, products, tokenUsage) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          savedEdit.id,
+          savedEdit.designId,
+          savedEdit.timestamp,
+          savedEdit.editInstructions,
+          savedEdit.originalImage,
+          savedEdit.editedImage,
+          JSON.stringify(savedEdit.products),
+          JSON.stringify(savedEdit.tokenUsage || null)
+        ]
+      );
+
+      console.log('💾 Edit saved to database:', {
+        id: savedEdit.id,
+        designId: savedEdit.designId,
+        editInstructions: savedEdit.editInstructions,
+        productsCount: savedEdit.products.length,
+        originalImageSize: savedEdit.originalImage.length,
+        editedImageSize: savedEdit.editedImage.length,
+        tokenUsage: savedEdit.tokenUsage?.grandTotal || 0
+      });
+      return savedEdit;
+    } catch (error) {
+      console.error('❌ Error saving edit:', error);
+      throw new Error('Failed to save edit');
     }
   }
 
@@ -338,6 +415,87 @@ class DesignStorage {
     } catch (error) {
       console.error('❌ Error loading checkbox states:', error);
       return new Set();
+    }
+  }
+
+  // Get all edits for a specific design
+  async getEditsForDesign(designId: string): Promise<SavedEdit[]> {
+    try {
+      await this.initDatabase();
+      
+      const result = await this.db!.getAllAsync(
+        `SELECT * FROM edits WHERE design_id = ? ORDER BY timestamp DESC`,
+        [designId]
+      );
+
+      return result.map((row: any) => ({
+        id: row.id,
+        designId: row.design_id,
+        timestamp: row.timestamp,
+        editInstructions: row.editInstructions,
+        originalImage: row.originalImage,
+        editedImage: row.editedImage,
+        products: JSON.parse(row.products),
+        tokenUsage: row.tokenUsage ? JSON.parse(row.tokenUsage) : undefined
+      }));
+    } catch (error) {
+      console.error('❌ Error loading edits for design:', error);
+      return [];
+    }
+  }
+
+  // Get all edits (across all designs)
+  async getAllEdits(): Promise<SavedEdit[]> {
+    try {
+      await this.initDatabase();
+      
+      const result = await this.db!.getAllAsync(
+        `SELECT * FROM edits ORDER BY timestamp DESC`
+      );
+
+      return result.map((row: any) => ({
+        id: row.id,
+        designId: row.design_id,
+        timestamp: row.timestamp,
+        editInstructions: row.editInstructions,
+        originalImage: row.originalImage,
+        editedImage: row.editedImage,
+        products: JSON.parse(row.products),
+        tokenUsage: row.tokenUsage ? JSON.parse(row.tokenUsage) : undefined
+      }));
+    } catch (error) {
+      console.error('❌ Error loading all edits:', error);
+      return [];
+    }
+  }
+
+  // Get a specific edit by ID
+  async getEditById(editId: string): Promise<SavedEdit | null> {
+    try {
+      await this.initDatabase();
+      
+      const result = await this.db!.getFirstAsync(
+        `SELECT * FROM edits WHERE id = ?`,
+        [editId]
+      ) as any;
+
+      if (!result) {
+        return null;
+      }
+
+      return {
+        id: result.id,
+        designId: result.design_id,
+        timestamp: result.timestamp,
+        editInstructions: result.editInstructions,
+        originalImage: result.originalImage,
+        editedImage: result.editedImage,
+        products: JSON.parse(result.products),
+        tokenUsage: result.tokenUsage ? JSON.parse(result.tokenUsage) : undefined
+      };
+    } catch (error) {
+      console.error('❌ Error loading edit by ID:', error);
+      return null;
     }
   }
 

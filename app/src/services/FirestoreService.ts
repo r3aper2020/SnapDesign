@@ -40,6 +40,9 @@ class FirestoreService {
       const data = await response.json();
       this.config = data.config;
       
+      // Enable the service after successful initialization
+      this.enable();
+      
       return true;
     } catch (error) {
       console.error('Failed to initialize Firestore service:', error);
@@ -105,9 +108,10 @@ class FirestoreService {
       const userData = createDefaultUser(uid, email, displayName);
       const firestoreUser: FirestoreUser = { uid, ...userData };
 
-      // Use POST to create a new document, not PATCH which can overwrite
+      // Use PATCH to create/update a document with specific ID
+      // PATCH to the specific document path
       const response = await fetch(this.getFirestoreUrl(`${FIRESTORE_COLLECTIONS.USERS}/${uid}`), {
-        method: 'POST',
+        method: 'PATCH',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
           fields: this.convertToFirestoreFields(firestoreUser),

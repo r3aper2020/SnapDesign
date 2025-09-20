@@ -189,6 +189,7 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
       originalImage: design.originalImage,
       products: design.products,
       designId: design.id,
+      description: design.description,
     });
   };
 

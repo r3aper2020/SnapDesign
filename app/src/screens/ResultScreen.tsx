@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,17 +10,22 @@ import {
   Linking,
   Dimensions,
   StyleSheet,
-  // Removed Animated import - no longer needed
   Modal,
+  TextInput,
+  Animated,
+  ActivityIndicator,
 } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
-// Removed gesture handler imports - no longer needed
+import { Image as ExpoImage } from 'expo-image';
+// import * as Haptics from 'expo-haptics';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
+import { endpoints } from '../config/api';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -47,6 +52,7 @@ interface ResultScreenProps {
         amazonLink?: string;
       }>;
       designId?: string;
+      description: string;
     };
   };
 }
@@ -59,10 +65,21 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   // STATE & HOOKS
   // ============================================================================
   const { theme } = useTheme();
-  const { generatedImage, originalImage, products, designId } = route.params;
+  const { generatedImage, originalImage, products, designId, description } = route.params;
   
-  // Swipe comparison state
+  // Image comparison state
   const [isShowingOriginal, setIsShowingOriginal] = useState(false);
+  
+  // Variations state
+  const [currentVariationIndex, setCurrentVariationIndex] = useState(0);
+  const [variations, setVariations] = useState<any[]>([]);
+  
+  // Products state (can be updated after edits)
+  const [currentProducts, setCurrentProducts] = useState(route.params.products);
+  
+  // Image preloading state
+  const [isPreloading, setIsPreloading] = useState(false);
+  const [cachedImageUris, setCachedImageUris] = useState<{[key: string]: string}>({});
   
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -70,47 +87,254 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   
   // Shopping list state
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
+  
+  // Edit functionality state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editInstructions, setEditInstructions] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  
+  
 
-  // Load checkbox states when component mounts
+  // Animation for pulsing glow
+  const glowAnim = useRef(new Animated.Value(0)).current;
+
+  // Preload and cache images
+  const preloadImages = async (imageList: string[]) => {
+    setIsPreloading(true);
+    
+    try {
+      // Convert all base64 images to URIs and cache them
+      const newCachedUris: {[key: string]: string} = {};
+      
+      imageList.forEach((imageBase64, index) => {
+        if (imageBase64) {
+          const uri = `data:image/jpeg;base64,${imageBase64}`;
+          newCachedUris[`image_${index}`] = uri;
+        }
+      });
+      
+      setCachedImageUris(newCachedUris);
+      
+      // Preload all images using ExpoImage's preload
+      const imageUris = Object.values(newCachedUris);
+      await ExpoImage.prefetch(imageUris);
+    } catch (error) {
+      console.error('Error preloading images:', error);
+    } finally {
+      setIsPreloading(false);
+    }
+  };
+
+  // Load checkbox states and variations when component mounts
   useEffect(() => {
-    const loadCheckboxStates = async () => {
+    const loadData = async () => {
       if (designId) {
         try {
+          // Load checkbox states
           const savedStates = await designStorage.loadCheckboxStates(designId);
           setCheckedItems(savedStates);
+          
+                // Load edit history/variations
+                const editHistory = await designStorage.getEditsForDesign(designId);
+                setVariations(editHistory);
+          
+          // Preload all images
+          const allImages = [
+            generatedImage,
+            ...editHistory.map(edit => edit.editedImage)
+          ].filter(Boolean);
+          
+          await preloadImages(allImages);
         } catch (error) {
-          console.error('Error loading checkbox states:', error);
+          console.error('Error loading data:', error);
         }
       }
     };
 
-    loadCheckboxStates();
+    loadData();
   }, [designId]);
+
+  // Start pulsing glow animation
+  useEffect(() => {
+    const startGlowAnimation = () => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: false,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
+    };
+
+    startGlowAnimation();
+  }, [glowAnim]);
 
   // ============================================================================
   // EVENT HANDLERS
   // ============================================================================
+  const handleEditDesign = () => {
+    setShowEditModal(true);
+  };
+
+
   const shareImage = async () => {
     try {
-      await Share.share({
-        message: 'Check out this AI-generated design!',
+      const result = await Share.share({
+        message: 'Check out my AI-transformed space!',
         url: `data:image/jpeg;base64,${generatedImage}`,
       });
     } catch (error) {
-      console.error('Error sharing image:', error);
+      console.error('Error sharing:', error);
     }
   };
 
-  const openAmazonLink = (url: string) => {
-    Linking.openURL(url);
+  const handleEditSubmit = async () => {
+    if (!editInstructions.trim()) return;
+
+    setIsEditing(true);
+    setShowEditModal(false);
+
+    try {
+      const requestBody = {
+        imageBase64: generatedImage,
+        description: editInstructions.trim(),
+        mimeType: 'image/jpeg'
+      };
+
+      const response = await fetch(endpoints.decorate(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.editedImageBase64 && data.products) {
+        // Save the edit to local storage
+        if (designId) {
+          try {
+            await designStorage.saveEdit({
+              designId: designId,
+              editInstructions: editInstructions.trim(),
+              originalImage: generatedImage,
+              editedImage: data.editedImageBase64,
+              products: data.products.items || data.products,
+              tokenUsage: data.tokenUsage
+            });
+          } catch (error) {
+            console.error('Error saving edit:', error);
+          }
+        }
+
+        // Update the current screen with the new variation
+        // Add the new variation to the variations array
+        const newVariation = {
+          id: Date.now().toString(), // Temporary ID
+          designId: designId || '',
+          timestamp: Date.now(),
+          editInstructions: editInstructions,
+          originalImage: generatedImage,
+          editedImage: data.editedImageBase64,
+          products: data.products.items || data.products,
+          tokenUsage: data.tokenUsage
+        };
+        
+        // Add the new variation to the variations array
+        setVariations(prev => [newVariation, ...prev]);
+        
+        // Cache the new image immediately
+        const newImageUri = `data:image/jpeg;base64,${data.editedImageBase64}`;
+        setCachedImageUris(prev => ({
+          ...prev,
+          [`image_1`]: newImageUri // Index 1 for the new variation
+        }));
+        
+        // Preload the new image
+        ExpoImage.prefetch([newImageUri]);
+        
+        // Update products with the new products from the edit
+        setCurrentProducts(data.products.items || data.products);
+        
+        // Switch to the new variation (index 1, since index 0 is the original generated image)
+        setCurrentVariationIndex(1);
+        
+        // Clear the edit modal
+        setShowEditModal(false);
+        setEditInstructions('');
+      } else {
+        console.error('No edited image returned from server');
+      }
+    } catch (error) {
+      console.error('Error editing design:', error);
+    } finally {
+      setIsEditing(false);
+      setShowEditModal(false);
+      setEditInstructions('');
+    }
   };
 
-  // Simple tap to toggle between images
   const toggleImage = () => {
+    // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsShowingOriginal(!isShowingOriginal);
   };
 
-  // Modal functions
+  // Get cached image URI
+  const getCachedImageUri = (imageBase64: string, index: number) => {
+    const cacheKey = `image_${index}`;
+    if (cachedImageUris[cacheKey]) {
+      return cachedImageUris[cacheKey];
+    }
+    // Fallback to direct base64 if not cached yet
+    return `data:image/jpeg;base64,${imageBase64}`;
+  };
+
+
+  // Get current variation prompt
+  const getCurrentVariationPrompt = useCallback(() => {
+    if (isShowingOriginal) {
+      return "Original photo of your space";
+    }
+    
+    if (currentVariationIndex === 0) {
+      // For the first generated design, show the actual prompt used
+      return description || "Initial AI-generated design";
+    }
+    
+    const variation = variations[currentVariationIndex - 1];
+    return variation?.editInstructions || "No prompt available";
+  }, [isShowingOriginal, currentVariationIndex, description, variations]);
+
+  // Swipe gesture handler for variations
+  const onSwipeGesture = useCallback((event: any) => {
+    const { translationX, state, velocityX } = event.nativeEvent;
+    
+    if (state === State.END) {
+      const isSwipeLeft = translationX < -30 || velocityX < -500;
+      const isSwipeRight = translationX > 30 || velocityX > 500;
+      
+      if (isSwipeLeft && currentVariationIndex < variations.length) {
+        // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setCurrentVariationIndex(prev => Math.min(prev + 1, variations.length));
+      } else if (isSwipeRight && currentVariationIndex > 0) {
+        // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setCurrentVariationIndex(prev => Math.max(prev - 1, 0));
+      }
+    }
+  }, [currentVariationIndex, variations.length]);
+
   const openModal = (imageType: 'original' | 'transformed' = 'transformed') => {
     setModalImageType(imageType);
     setIsModalVisible(true);
@@ -124,11 +348,6 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     setModalImageType(modalImageType === 'original' ? 'transformed' : 'original');
   };
 
-  // Main image functions (simplified - no zoom/pan)
-
-  // Modal functions (simplified - no zoom/pan)
-
-  // Shopping list functions
   const toggleCheckbox = async (index: number) => {
     setCheckedItems(prev => {
       const newSet = new Set(prev);
@@ -138,7 +357,6 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
         newSet.add(index);
       }
       
-      // Save checkbox states to database
       if (designId) {
         designStorage.saveCheckboxStates(designId, newSet).catch(error => {
           console.error('Error saving checkbox states:', error);
@@ -148,6 +366,13 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
       return newSet;
     });
   };
+
+  // Memoize current image to prevent recalculation on every render
+  const currentImage = useMemo(() => {
+    return currentVariationIndex === 0 
+      ? generatedImage 
+      : variations[currentVariationIndex - 1]?.editedImage;
+  }, [currentVariationIndex, generatedImage, variations]);
 
   // ============================================================================
   // RENDER
@@ -160,9 +385,9 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
         style={styles.backgroundImage}
         resizeMode="cover"
       />
-      {/* Fixed Header */}
-      <View style={[styles.fixedHeader, { backgroundColor: 'transparent' }]}>
-        {/* Back Button */}
+      
+      {/* Simplified Header */}
+      <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -170,217 +395,314 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
           <Text style={[styles.backButtonText, { color: theme.colors.text.primary }]}>‹</Text>
         </TouchableOpacity>
         
-        {/* Logo and Title */}
         <View style={styles.headerContent}>
-          <Image 
-            source={require('../../assets/re-vibe.png')} 
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <Text style={[styles.title, { color: theme.colors.text.primary }]}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text.primary }]}>
             Your Design
           </Text>
-          <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-            Here's your transformed space
-          </Text>
         </View>
+        
+        {/* Edit Design Button */}
+        <TouchableOpacity
+          style={[
+            styles.headerEditButton, 
+            { 
+              backgroundColor: isEditing ? theme.colors.text.secondary : theme.colors.primary.main,
+              opacity: isEditing ? 0.7 : 1
+            }
+          ]}
+          onPress={handleEditDesign}
+          disabled={isEditing}
+          activeOpacity={0.8}
+        >
+          {isEditing ? (
+            <ActivityIndicator size="small" color={theme.colors.primary.contrast} />
+          ) : (
+            <Text style={[styles.headerEditButtonText, { color: theme.colors.primary.contrast }]}>
+              Edit
+            </Text>
+          )}
+        </TouchableOpacity>
       </View>
       
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-
-        {/* Generated Image Card */}
-        <View style={[styles.card, { backgroundColor: 'rgba(0, 0, 0, 0.3)' }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
-              {isShowingOriginal ? 'Original Space' : 'Transformed Space'}
-            </Text>
-            <Text style={[styles.cardSubtitle, { color: theme.colors.text.secondary }]}>
-              {isShowingOriginal ? 'Your original photo' : 'AI-enhanced design based on your theme'}
-            </Text>            
-          </View>
-          
-            <View style={styles.imageContainer}>
-             <TouchableOpacity onPress={toggleImage} activeOpacity={0.9}>
-               {isShowingOriginal ? (
-                 // Show Original Image
-                 originalImage ? (
-                   <Image 
-                     source={{ uri: `data:image/jpeg;base64,${originalImage}` }} 
-                     style={styles.generatedImage} 
-                     fadeDuration={0}
-                   />
-                 ) : (
-                   <View style={[styles.noImageContainer, { backgroundColor: theme.colors.background.primary }]}>
-                     <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
-                       No original image available
-                     </Text>
-                   </View>
-                 )
-               ) : (
-                 // Show Generated Image
-                 generatedImage ? (
-                   <Image 
-                     source={{ uri: `data:image/jpeg;base64,${generatedImage}` }} 
-                     style={styles.generatedImage} 
-                     fadeDuration={0}
-                   />
-                 ) : (
-                   <View style={[styles.noImageContainer, { backgroundColor: theme.colors.background.primary }]}>
-                     <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
-                       No image available
-                     </Text>
-                   </View>
-                 )
-               )}
-             </TouchableOpacity>
-             
-             {/* Expand Button */}
-             <TouchableOpacity
-               style={[styles.expandButton, { backgroundColor: theme.colors.primary.main }]}
-               onPress={() => openModal(isShowingOriginal ? 'original' : 'transformed')}
-             >
-               <Text style={[styles.expandButtonText, { color: theme.colors.primary.contrast }]}>
-                 ⛶
-               </Text>
-             </TouchableOpacity>
+        {/* Main Image Section */}
+        <View style={styles.imageSection}>
+          {/* Variation Counter */}
+          {!isShowingOriginal && (variations.length > 0 || generatedImage) && (
+            <View style={styles.variationCounter}>
+              <Text style={[styles.variationCounterText, { color: theme.colors.text.primary }]}>
+                {currentVariationIndex === 0 ? 'Generated Design' : `Variation ${currentVariationIndex}`}
+              </Text>
+              <Text style={[styles.variationCounterSubtext, { color: theme.colors.text.secondary }]}>
+                {variations.length + 1} total
+              </Text>
             </View>
-
-          {/* Action Buttons */}
-          <View style={styles.imageActionButtons}>
-            <TouchableOpacity
-              style={[styles.imageActionButton, { backgroundColor: theme.colors.secondary.main }]}
-              onPress={() => navigation.navigate('MainTabs', { screen: 'Design' })}
+          )}
+          
+          {/* Original Photo Counter */}
+          {isShowingOriginal && (
+            <View style={styles.variationCounter}>
+              <Text style={[styles.variationCounterText, { color: theme.colors.text.primary }]}>
+                Original Photo
+              </Text>
+              <Text style={[styles.variationCounterSubtext, { color: theme.colors.text.secondary }]}>
+                Your space
+              </Text>
+            </View>
+          )}
+          
+          <PanGestureHandler
+            onHandlerStateChange={onSwipeGesture}
+            activeOffsetX={[-15, 15]}
+            failOffsetY={[-20, 20]}
+          >
+            <TouchableOpacity 
+              style={styles.imageContainer}
+              onPress={toggleImage}
+              activeOpacity={0.95}
             >
-              <Text style={[styles.imageActionButtonText, { color: theme.colors.secondary.contrast }]}>
-                Create Another
+            {isShowingOriginal ? (
+              originalImage ? (
+                <View style={styles.imageWrapper}>
+                  {/* Animated Pulsing Glow Effect - Behind Image */}
+                  <Animated.View 
+                    style={[
+                      styles.glowEffect,
+                      {
+                        shadowOpacity: glowAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.3, 0.8],
+                        }),
+                        shadowRadius: glowAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [15, 35],
+                        }),
+                      }
+                    ]}
+                  />
+                  <View style={styles.imageContainerFixed}>
+                    <ExpoImage 
+                      source={{ uri: getCachedImageUri(originalImage, -1) }} 
+                      style={styles.mainImageFixed}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                    />
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.noImagePlaceholder}>
+                  <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
+                    No original image
+                  </Text>
+                </View>
+              )
+            ) : (
+              currentImage ? (
+                  <View style={styles.imageWrapper}>
+                    {/* Animated Pulsing Glow Effect - Behind Image */}
+                    <Animated.View 
+                      style={[
+                        styles.glowEffect,
+                        {
+                          shadowOpacity: glowAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.3, 0.8],
+                          }),
+                          shadowRadius: glowAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [15, 35],
+                          }),
+                        }
+                      ]}
+                    />
+                    <View style={styles.imageContainerFixed}>
+                      <ExpoImage 
+                        source={{ 
+                          uri: getCachedImageUri(currentImage, currentVariationIndex)
+                        }} 
+                        style={styles.mainImageFixed}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        key={`variation-${currentVariationIndex}`}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.noImagePlaceholder}>
+                    <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
+                      No image available
+                    </Text>
+                  </View>
+                )
+            )}
+            
+            {/* Image Toggle Indicator */}
+            <View style={styles.imageToggleIndicator}>
+              <View style={[styles.toggleDot, { 
+                backgroundColor: isShowingOriginal ? theme.colors.text.secondary : theme.colors.primary.main 
+              }]} />
+              <View style={[styles.toggleDot, { 
+                backgroundColor: isShowingOriginal ? theme.colors.primary.main : theme.colors.text.secondary 
+              }]} />
+            </View>
+            
+            {/* Expand Button - Top Left */}
+            <TouchableOpacity
+              style={[styles.expandButton, styles.expandButtonTopLeft, { backgroundColor: theme.colors.primary.main }]}
+              onPress={() => openModal(isShowingOriginal ? 'original' : 'transformed')}
+            >
+              <Text style={[styles.expandButtonText, { color: theme.colors.primary.contrast }]}>
+                ⛶
               </Text>
             </TouchableOpacity>
             
+            {/* Share Button - Bottom Right */}
             <TouchableOpacity
-              style={[styles.imageActionButtonSecondary, { borderColor: theme.colors.accent.purple }]}
+              style={[styles.shareButton, { backgroundColor: theme.colors.primary.main }]}
               onPress={shareImage}
             >
-              <Text style={[styles.imageActionButtonText, { color: theme.colors.accent.purple }]}>
-                Share Design
+              <Text style={[styles.shareButtonText, { color: theme.colors.primary.contrast }]}>
+                ⤴
               </Text>
             </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
+          </PanGestureHandler>
+          
+          {/* Variation Thumbnail Indicators */}
+          {!isShowingOriginal && (variations.length > 0 || generatedImage) && (
+            <View style={styles.variationIndicators}>
+              {Array.from({ length: variations.length + 1 }, (_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.variationDot,
+                    {
+                      backgroundColor: index === currentVariationIndex 
+                        ? theme.colors.primary.main 
+                        : theme.colors.text.secondary
+                    }
+                  ]}
+                />
+              ))}
+            </View>
+          )}
+          
+          {/* Swipe Hint */}
+          {!isShowingOriginal && variations.length > 0 && (
+            <View style={styles.swipeHint}>
+              <Text style={[styles.swipeHintText, { color: theme.colors.text.secondary }]}>
+                ← Swipe to see variations →
+              </Text>
+              {isPreloading && (
+                <View style={styles.preloadIndicator}>
+                  <ActivityIndicator size="small" color={theme.colors.primary.main} />
+                  <Text style={[styles.preloadText, { color: theme.colors.text.secondary }]}>
+                    Loading variations...
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
-        {/* Products Section */}
-        {products && products.length > 0 ? (
+        {/* Prompt Text - Under the image */}
+        {!isShowingOriginal && (variations.length > 0 || generatedImage) && (
+          <View style={styles.promptTextSection}>
+            <Text style={[styles.promptTextLabel, { color: theme.colors.text.secondary }]}>
+              Prompt used:
+            </Text>
+            <Text style={[styles.promptText, { color: theme.colors.text.primary }]}>
+              {getCurrentVariationPrompt()}
+            </Text>
+          </View>
+        )}
+
+        {/* Products Section - Always visible */}
+        {currentProducts && currentProducts.length > 0 && (
           <View style={styles.productsSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+            <View style={styles.productsHeader}>
+              <Text style={[styles.productsTitle, { color: theme.colors.text.primary }]}>
                 Shopping List
               </Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
-                {checkedItems.size} of {products.length} items checked
+              <Text style={[styles.productsSubtitle, { color: theme.colors.text.secondary }]}>
+                {checkedItems.size} of {currentProducts.length} items
               </Text>
             </View>
-
-            {products.map((product, index) => {
-              const isChecked = checkedItems.has(index);
-              return (
-                <View key={index} style={[styles.shoppingListItem, { 
-                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                  opacity: isChecked ? 0.6 : 1
-                }]}>
-                  {/* Checkbox and Main Content */}
-                  <View style={styles.listItemContent}>
-                    <TouchableOpacity 
-                      style={[styles.checkbox, { 
-                        borderColor: theme.colors.primary.main,
-                        backgroundColor: isChecked ? theme.colors.primary.main : 'transparent'
-                      }]}
-                      onPress={() => toggleCheckbox(index)}
-                    >
-                      {isChecked && (
-                        <Text style={[styles.checkmark, { color: theme.colors.primary.contrast }]}>
-                          ✓
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                    
-                    <View style={styles.itemDetails}>
-                      <View style={styles.itemHeader}>
-                        <Text style={[styles.itemName, { 
-                          color: theme.colors.text.primary,
-                          textDecorationLine: isChecked ? 'line-through' : 'none'
-                        }]}>
-                          {product.name}
-                        </Text>
-                        <View style={[styles.quantityBadge, { backgroundColor: theme.colors.primary.main }]}>
-                          <Text style={[styles.quantityText, { color: theme.colors.primary.contrast }]}>
-                            {product.qty}x
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      <Text style={[styles.itemType, { color: theme.colors.text.secondary }]}>
-                        {product.type}
-                      </Text>
-                      
-                      {product.estPriceUSD && (
-                        <Text style={[styles.itemPrice, { color: theme.colors.primary.main }]}>
-                          ${product.estPriceUSD}
-                        </Text>
-                      )}
-                      
-                      {product.placement?.note && (
-                        <Text style={[styles.placementNote, { color: theme.colors.text.secondary }]}>
-                          📍 {product.placement.note}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                  
-                  {/* Amazon Button */}
-                  {product.amazonLink && (
-                    <TouchableOpacity
-                      style={styles.amazonButton}
-                      onPress={() => openAmazonLink(product.amazonLink!)}
-                    >
-                      {isChecked ? (
-                        <View style={[styles.amazonButtonContent, { 
-                          backgroundColor: theme.colors.background.primary,
+            
+            <View style={styles.productsList}>
+              {currentProducts.map((product, index) => {
+                const isChecked = checkedItems.has(index);
+                return (
+                  <View key={index} style={[styles.productItem, { 
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    opacity: isChecked ? 0.6 : 1
+                  }]}>
+                    <View style={styles.productContent}>
+                      <TouchableOpacity 
+                        style={[styles.checkbox, { 
                           borderColor: theme.colors.primary.main,
-                          borderWidth: 1
-                        }]}>
-                          <Text style={[styles.amazonButtonText, { color: theme.colors.primary.main }]}>
-                            Purchased
+                          backgroundColor: isChecked ? theme.colors.primary.main : 'transparent'
+                        }]}
+                        onPress={() => toggleCheckbox(index)}
+                      >
+                        {isChecked && (
+                          <Text style={[styles.checkmark, { color: theme.colors.primary.contrast }]}>
+                            ✓
                           </Text>
+                        )}
+                      </TouchableOpacity>
+                      
+                      <View style={styles.productDetails}>
+                        <View style={styles.productHeader}>
+                          <Text style={[styles.productName, { color: theme.colors.text.primary }]}>
+                            {product.name}
+                          </Text>
+                          <View style={[styles.quantityBadge, { backgroundColor: theme.colors.primary.main }]}>
+                            <Text style={[styles.quantityText, { color: theme.colors.primary.contrast }]}>
+                              {product.qty}
+                            </Text>
+                          </View>
                         </View>
-                      ) : (
+                        
+                        <Text style={[styles.productType, { color: theme.colors.text.secondary }]}>
+                          {product.type}
+                        </Text>
+                        
+                        {product.estPriceUSD && (
+                          <Text style={[styles.productPrice, { color: theme.colors.text.primary }]}>
+                            ${product.estPriceUSD.toFixed(2)}
+                          </Text>
+                        )}
+                        
+                        {product.placement?.note && (
+                          <Text style={[styles.placementNote, { color: theme.colors.text.secondary }]}>
+                            {product.placement.note}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    
+                    {product.amazonLink && (
+                      <TouchableOpacity
+                        style={styles.amazonButton}
+                        onPress={() => product.amazonLink && Linking.openURL(product.amazonLink)}
+                      >
                         <LinearGradient
-                          colors={theme.colors.gradient.primary}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 0 }}
+                          colors={['#FF9500', '#FF6B00']}
                           style={styles.amazonButtonContent}
                         >
-                          <Text style={[styles.amazonButtonText, { color: theme.colors.text.primary }]}>
-                            Buy Now
+                          <Text style={[styles.amazonButtonText, { color: '#FFFFFF' }]}>
+                            View on Amazon
                           </Text>
                         </LinearGradient>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          <View style={[styles.card, { backgroundColor: 'rgba(0, 0, 0, 0.3)' }]}>
-            <View style={styles.noProductsContainer}>
-              <Text style={[styles.noProductsTitle, { color: theme.colors.text.primary }]}>
-                No Products Available
-              </Text>
-              <Text style={[styles.noProductsText, { color: theme.colors.text.secondary }]}>
-                The AI couldn't identify specific products in this design. Try generating a new design or check the console for more details.
-              </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
@@ -394,69 +716,135 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
         onRequestClose={closeModal}
       >
         <View style={styles.modalContainer}>
-          {/* Modal Header */}
-          <View style={[styles.modalHeader, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+          <View style={styles.modalHeader}>
             <TouchableOpacity
               style={styles.modalCloseButton}
               onPress={closeModal}
             >
-              <Text style={styles.modalCloseText}>✕</Text>
+              <Text style={[styles.modalCloseButtonText, { color: theme.colors.text.primary }]}>
+                ✕
+              </Text>
             </TouchableOpacity>
             
-            <View style={styles.modalTitleContainer}>
-              <Text style={styles.modalTitle}>
-                {modalImageType === 'original' ? 'Original Image' : 'Transformed Image'}
+            <TouchableOpacity
+              style={styles.modalToggleButton}
+              onPress={toggleModalImage}
+            >
+              <Text style={[styles.modalToggleButtonText, { color: theme.colors.text.primary }]}>
+                {modalImageType === 'original' ? 'Show Transformed' : 'Show Original'}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
-
-          {/* Modal Image - Tap to Toggle */}
-          <TouchableOpacity 
-            style={styles.modalImageContainer}
-            onPress={toggleModalImage}
-            activeOpacity={0.9}
-          >
+          
+          <View style={styles.modalImageContainer}>
             {modalImageType === 'original' ? (
               originalImage ? (
-                <Image 
-                  source={{ uri: `data:image/jpeg;base64,${originalImage}` }} 
+                <ExpoImage 
+                  source={{ uri: getCachedImageUri(originalImage, -1) }} 
                   style={styles.modalImage} 
-                  fadeDuration={0}
-                  resizeMode="contain"
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
                 />
               ) : (
-                <View style={[styles.modalNoImage, { backgroundColor: theme.colors.background.primary }]}>
-                  <Text style={[styles.modalNoImageText, { color: theme.colors.text.secondary }]}>
-                    No original image available
-                  </Text>
-                </View>
+                <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
+                  No original image available
+                </Text>
               )
             ) : (
               generatedImage ? (
-                <Image 
-                  source={{ uri: `data:image/jpeg;base64,${generatedImage}` }} 
+                <ExpoImage 
+                  source={{ uri: getCachedImageUri(generatedImage, 0) }} 
                   style={styles.modalImage} 
-                  fadeDuration={0}
-                  resizeMode="contain"
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
                 />
               ) : (
-                <View style={[styles.modalNoImage, { backgroundColor: theme.colors.background.primary }]}>
-                  <Text style={[styles.modalNoImageText, { color: theme.colors.text.secondary }]}>
-                    No image available
-                  </Text>
-                </View>
+                <Text style={[styles.noImageText, { color: theme.colors.text.secondary }]}>
+                  No image available
+                </Text>
               )
             )}
-          </TouchableOpacity>
-
-          {/* Modal Controls */}
-          <View style={[styles.modalControls, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
-            <Text style={styles.modalInstructions}>
-              Tap the image to switch between original and transformed
-            </Text>
           </View>
         </View>
       </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.editModalContainer}>
+          <View style={[styles.editModalContent, { backgroundColor: theme.colors.background.primary }]}>
+            <Text style={[styles.editModalTitle, { color: theme.colors.text.primary }]}>
+              Edit Your Design
+            </Text>
+            <Text style={[styles.editModalSubtitle, { color: theme.colors.text.secondary }]}>
+              Describe how you'd like to modify your design
+            </Text>
+            
+            <TextInput
+              style={[styles.editModalInput, { 
+                backgroundColor: theme.colors.background.secondary,
+                color: theme.colors.text.primary,
+                borderColor: theme.colors.border.light
+              }]}
+              value={editInstructions}
+              onChangeText={setEditInstructions}
+              placeholder="e.g., 'Make it more colorful', 'Add plants', 'Change to modern style'"
+              placeholderTextColor={theme.colors.text.secondary}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            
+            <View style={styles.editModalButtons}>
+              <TouchableOpacity
+                style={[styles.editModalButton, styles.editModalCancelButton, { borderColor: theme.colors.border.light }]}
+                onPress={() => setShowEditModal(false)}
+              >
+                <Text style={[styles.editModalButtonText, { color: theme.colors.text.secondary }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.editModalButton, styles.editModalSubmitButton, { backgroundColor: theme.colors.primary.main }]}
+                onPress={handleEditSubmit}
+                disabled={!editInstructions.trim() || isEditing}
+              >
+                <Text style={[styles.editModalButtonText, { color: theme.colors.primary.contrast }]}>
+                  {isEditing ? 'Editing...' : 'Edit Design'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity
+          style={[styles.bottomNavButton, { backgroundColor: theme.colors.primary.main }]}
+          onPress={() => navigation.navigate('MainTabs', { screen: 'Design' })}
+        >
+          <Text style={[styles.bottomNavButtonText, { color: theme.colors.primary.contrast }]}>
+            New Design
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.bottomNavButton, { backgroundColor: theme.colors.background.secondary }]}
+          onPress={() => navigation.navigate('MainTabs', { screen: 'SavedDesigns' })}
+        >
+          <Text style={[styles.bottomNavButtonText, { color: theme.colors.text.primary }]}>
+            Saved
+          </Text>
+        </TouchableOpacity>
+      </View>
+
     </SafeAreaView>
   );
 };
@@ -477,230 +865,393 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-    flexGrow: 1,
-  },
   
-  // Fixed Header Section
-  fixedHeader: {
+  // Header
+  header: {
+    paddingTop: 60,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    paddingTop: 16,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
+    position: 'relative',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
     position: 'absolute',
-    top: 50, // Adjusted to align with logo center
-    left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    top: 60,
+    left: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1001,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 3,
   },
   backButtonText: {
     fontSize: 24,
-    fontWeight: '300',
-    color: '#FFFFFF',
-    marginLeft: -1,
+    fontWeight: 'bold',
   },
   headerContent: {
     alignItems: 'center',
-    paddingTop: 20,
   },
-  logo: {
-    width: 120,
-    height: 120,
-    marginTop: -30, // Crop 25% from top (120 * 0.25 = 30)
-    marginBottom: -28, // Crop 25% from bottom (120 * 0.25 = 30) + original 2 margin
-    overflow: 'hidden',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 8,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
+    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 14,
+  headerSubtitle: {
+    fontSize: 16,
     textAlign: 'center',
-    lineHeight: 20,
-    maxWidth: width - 60,
+    lineHeight: 22,
     opacity: 0.8,
+    maxWidth: width - 80,
   },
-  card: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+  
+  // Scroll Content
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    flexGrow: 1,
   },
-  cardHeader: {
+  
+  // Image Section
+  imageSection: {
+    marginTop: 24,
+    marginBottom: 32,
+    paddingHorizontal: 24,
+  },
+  
+  // Variation Counter
+  variationCounter: {
+    alignItems: 'center',
     marginBottom: 16,
   },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 8,
+  variationCounterContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  cardSubtitle: {
+  variationCounterText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  variationCounterSubtext: {
     fontSize: 14,
-    lineHeight: 20,
     opacity: 0.7,
   },
-  imageContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  
+  // Prompt Text Section
+  promptTextSection: {
+    paddingHorizontal: 24,
     marginBottom: 24,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 16,
+    marginHorizontal: 24,
+  },
+  promptTextLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+    opacity: 0.7,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  promptText: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontStyle: 'italic',
+    opacity: 0.95,
+    fontWeight: '500',
+  },
+  
+  // Prompt Container
+  promptContainer: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    minHeight: 80,
+  },
+  imageContainer: {
     position: 'relative',
-    width: width - 88, // Account for card padding (20px each side) + scroll padding (16px each side)
-    height: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glowEffect: {
+    position: 'absolute',
+    width: width - 48,
+    height: width * 1.2,
+    borderRadius: 24,
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 25,
+    elevation: 15,
+    zIndex: 1,
+  },
+  mainImage: {
+    width: width - 48,
+    height: width * 1.2,
+    borderRadius: 24,
+    zIndex: 2,
+  },
+  imageContainerFixed: {
+    width: width - 48,
+    height: width * 1.2,
+    borderRadius: 24,
     overflow: 'hidden',
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 12,
-    alignSelf: 'center',
+    zIndex: 2,
   },
-  generatedImage: {
-    width: width - 88,
-    height: 280,
-    borderRadius: 20,
-    resizeMode: 'cover',
+  mainImageFixed: {
+    width: '100%',
+    height: '100%',
   },
-  noImageContainer: {
-    width: width - 88,
-    height: 280,
-    borderRadius: 20,
+  noImagePlaceholder: {
+    width: width - 48,
+    height: width * 1.2,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   noImageText: {
     fontSize: 16,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  
+  // Image Toggle Indicator
+  imageToggleIndicator: {
+    position: 'absolute',
+    bottom: 20,
+    left: '50%',
+    transform: [{ translateX: -20 }],
+    flexDirection: 'row',
+    gap: 8,
+  },
+  toggleDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  
+  // Variation Indicators
+  variationIndicators: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  variationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    opacity: 0.7,
+  },
+  
+  // Expand Button
+  expandButton: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 10,
+  },
+  expandButtonTopLeft: {
+    top: 16,
+    left: 16,
+  },
+  expandButtonText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  
+  // Share Button
+  shareButton: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 10,
+  },
+  shareButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  
+  // Action Buttons
+  actionButtonsSection: {
+    marginBottom: 32,
+  },
+  primaryActions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  primaryButton: {
+    flex: 1,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    flex: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    backgroundColor: 'transparent',
+  },
+  secondaryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // Products Section
+  productsSection: {
+    marginBottom: 20,
+  },
+  productsHeader: {
+    marginBottom: 20,
+  },
+  productsTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: -0.3,
+  },
+  productsSubtitle: {
+    fontSize: 14,
+    opacity: 0.8,
     fontWeight: '500',
   },
-  imageActionButtons: {
-    flexDirection: 'row',
-    gap: 12,
+  productsList: {
+    gap: 16,
   },
-  imageActionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+  productItem: {
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  productContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  checkbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    marginRight: 16,
+    justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
-  },
-  imageActionButtonSecondary: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-  },
-  imageActionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  productsSection: {
-    marginTop: 8,
-  },
-  sectionHeader: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    fontSize: 16,
-    lineHeight: 22,
-    opacity: 0.7,
-  },
-  // Shopping List Styles
-  shoppingListItem: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  listItemContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    marginRight: 12,
-    marginTop: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
+    elevation: 2,
   },
   checkmark: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
-  itemDetails: {
+  productDetails: {
     flex: 1,
   },
-  itemHeader: {
+  productHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  itemName: {
+  productName: {
     fontSize: 16,
     fontWeight: '600',
     flex: 1,
-    marginRight: 8,
+    marginRight: 12,
+    lineHeight: 22,
   },
   quantityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    minWidth: 36,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   quantityText: {
     fontSize: 12,
     fontWeight: '600',
   },
-  itemType: {
+  productType: {
     fontSize: 14,
     opacity: 0.7,
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  itemPrice: {
-    fontSize: 16,
+  productPrice: {
+    fontSize: 18,
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   placementNote: {
     fontSize: 13,
@@ -708,56 +1259,19 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   amazonButton: {
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   amazonButtonContent: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     alignItems: 'center',
   },
   amazonButtonText: {
     fontSize: 14,
     fontWeight: '600',
   },
-  noProductsContainer: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  noProductsTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  noProductsText: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-    opacity: 0.7,
-    maxWidth: width - 120,
-  },
-  // Expand Button Styles
-  expandButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  expandButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
+  
   // Modal Styles
   modalContainer: {
     flex: 1,
@@ -779,50 +1293,185 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalCloseText: {
-    fontSize: 20,
-    color: '#FFFFFF',
+  modalCloseButtonText: {
+    fontSize: 18,
     fontWeight: 'bold',
   },
-  modalTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
+  modalToggleButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  modalTitle: {
-    fontSize: 18,
+  modalToggleButtonText: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
   modalImageContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  modalImage: {
-    width: width,
-    height: Dimensions.get('window').height - 200,
-  },
-  modalNoImage: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalNoImageText: {
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  modalControls: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
     paddingHorizontal: 20,
   },
-  modalInstructions: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center',
+  modalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  
+  // Edit Modal Styles
+  editModalContainer: {
     flex: 1,
-    marginLeft: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  editModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 24,
+  },
+  editModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  editModalSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    opacity: 0.7,
+    marginBottom: 20,
+  },
+  editModalInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: 20,
+  },
+  editModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  editModalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  editModalCancelButton: {
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  editModalSubmitButton: {
+    // backgroundColor set dynamically
+  },
+  editModalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  
+  // Edit History Styles
+  editHistoryList: {
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  editHistoryItem: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  editHistoryText: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  editHistoryDate: {
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  noEditHistoryText: {
+    fontSize: 14,
+    textAlign: 'center',
+    opacity: 0.7,
+    paddingVertical: 20,
+  },
+  
+  // New UX Improvement Styles
+  headerEditButton: {
+    position: 'absolute',
+    top: 60,
+    right: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1001,
+    minWidth: 70,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  headerEditButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  
+  // Swipe Hint
+  swipeHint: {
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  swipeHintText: {
+    fontSize: 12,
+    opacity: 0.6,
+    fontStyle: 'italic',
+  },
+  preloadIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  preloadText: {
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  
+  // Bottom Navigation
+  bottomNav: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    paddingBottom: 34,
+    gap: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  bottomNavButton: {
+    flex: 1,
+    paddingVertical: 18,
+    borderRadius: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  bottomNavButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
