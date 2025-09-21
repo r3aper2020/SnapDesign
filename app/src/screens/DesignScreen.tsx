@@ -17,6 +17,7 @@ import {
   Modal,
   Animated,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../theme/ThemeProvider';
@@ -420,8 +421,8 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           {/* Processing Steps */}
           <View style={styles.processingSteps}>
             <View style={styles.processingStep}>
-              <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
-                <Text style={styles.stepIconText}>●</Text>
+              <View style={[styles.stepIcon, { backgroundColor: theme.colors.button.primary }]}>
+                <MaterialIcons name="radio-button-checked" size={16} color="#FFFFFF" />
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
                 Analyzing your space
@@ -429,8 +430,8 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             </View>
             
             <View style={styles.processingStep}>
-              <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
-                <Text style={styles.stepIconText}>●</Text>
+              <View style={[styles.stepIcon, { backgroundColor: theme.colors.button.primary }]}>
+                <MaterialIcons name="radio-button-checked" size={16} color="#FFFFFF" />
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
                 Searching for products for your space
@@ -438,8 +439,8 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             </View>
             
             <View style={styles.processingStep}>
-              <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
-                <Text style={styles.stepIconText}>●</Text>
+              <View style={[styles.stepIcon, { backgroundColor: theme.colors.button.primary }]}>
+                <MaterialIcons name="radio-button-checked" size={16} color="#FFFFFF" />
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
                 Generating your design based on similar products found
@@ -488,7 +489,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       {!(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && (
         <View style={styles.uploadButtons}>
           <TouchableOpacity 
-            style={[styles.uploadButton, { backgroundColor: theme.colors.primary.main }]}
+            style={[styles.uploadButton, { backgroundColor: theme.colors.button.primary }]}
             onPress={pickImage}
             accessibilityLabel="Choose photo from gallery"
             accessibilityRole="button"
@@ -498,12 +499,12 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.uploadButton, styles.uploadButtonSecondary, { borderColor: theme.colors.primary.main }]}
+            style={[styles.uploadButton, styles.uploadButtonSecondary, { borderColor: theme.colors.button.secondary }]}
             onPress={takePhoto}
             accessibilityLabel="Take a new photo"
             accessibilityRole="button"
           >
-            <Text style={[styles.uploadButtonText, { color: theme.colors.primary.main }]}>
+            <Text style={[styles.uploadButtonText, { color: theme.colors.button.secondary }]}>
               Take Photo
             </Text>
           </TouchableOpacity>
@@ -513,7 +514,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       {/* Processing state */}
       {formState.isProcessingImage && (
         <View style={styles.processingContainer}>
-          <ActivityIndicator color={theme.colors.primary.main} size="large" />
+          <ActivityIndicator color={theme.colors.button.primary} size="large" />
           <Text style={[styles.processingText, { color: theme.colors.text.secondary }]}>
             Processing your image...
           </Text>
@@ -546,7 +547,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         {/* Thumbnail on the left */}
         <View style={styles.thumbnailContainer}>
           <TouchableOpacity 
-            style={[styles.thumbnailWrapper, { borderColor: theme.colors.primary.main }]}
+            style={[styles.thumbnailWrapper, { borderColor: theme.colors.button.primary }]}
             onPress={openImageModal}
             activeOpacity={0.8}
             accessibilityLabel="View full size image"
@@ -657,9 +658,11 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
               accessibilityLabel="Close image modal"
               accessibilityRole="button"
             >
-              <Text style={[styles.imageModalCloseButtonText, { color: theme.colors.text.primary }]}>
-                ✕
-              </Text>
+              <MaterialIcons 
+                name="close" 
+                size={20} 
+                color={theme.colors.text.primary}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity 
@@ -691,7 +694,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.imageModalButton, styles.imageModalButtonSecondary, { borderColor: theme.colors.primary.main }]}
+                style={[styles.imageModalButton, styles.imageModalButtonSecondary, { borderColor: theme.colors.button.secondary }]}
                 onPress={() => {
                   closeImageModal();
                   takePhoto();
@@ -699,7 +702,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
                 accessibilityLabel="Retake photo"
                 accessibilityRole="button"
               >
-                <Text style={[styles.imageModalButtonText, { color: theme.colors.primary.main }]}>
+                <Text style={[styles.imageModalButtonText, { color: theme.colors.button.secondary }]}>
                   Retake Photo
                 </Text>
               </TouchableOpacity>

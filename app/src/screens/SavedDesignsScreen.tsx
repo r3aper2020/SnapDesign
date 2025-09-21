@@ -12,6 +12,7 @@ import {
   RefreshControl,
   FlatList,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -73,10 +74,10 @@ const DesignCard: React.FC<{
       {/* Design Info */}
       <View style={styles.designInfo}>
         <View style={styles.designHeader}>
-          <Text style={[styles.designType, { color: theme.colors.primary.main }]}>
-            {design.serviceType === 'declutter' ? '🧹 Decluttering Plan' : 
-             design.serviceType === 'makeover' ? '🏠 Room Makeover' : 
-             '🎨 AI Design'}
+          <Text style={[styles.designType, { color: theme.colors.button.accent }]}>
+            {design.serviceType === 'declutter' ? 'Decluttering Plan' : 
+             design.serviceType === 'makeover' ? 'Room Makeover' : 
+             'AI Design'}
           </Text>
         </View>
         <Text style={[styles.designDescription, { color: theme.colors.text.primary }]} numberOfLines={2}>
@@ -282,10 +283,10 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
           contentContainerStyle={styles.filterTabsContent}
         >
           {[
-            { key: 'all', label: 'All', icon: '📁' },
-            { key: 'design', label: 'Designs', icon: '🎨' },
-            { key: 'declutter', label: 'Plans', icon: '🧹' },
-            { key: 'makeover', label: 'Makeover', icon: '🏠' },
+            { key: 'all', label: 'All', icon: 'folder' },
+            { key: 'design', label: 'Designs', icon: 'palette' },
+            { key: 'declutter', label: 'Plans', icon: 'cleaning-services' },
+            { key: 'makeover', label: 'Makeover', icon: 'home' },
           ].map((filter) => (
             <TouchableOpacity
               key={filter.key}
@@ -293,17 +294,22 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
                 styles.filterTab,
                 { 
                   backgroundColor: activeFilter === filter.key 
-                    ? theme.colors.primary.main 
+                    ? theme.colors.button.accent 
                     : 'rgba(255, 255, 255, 0.1)',
                   borderColor: activeFilter === filter.key 
-                    ? theme.colors.primary.main 
+                    ? theme.colors.button.accent 
                     : 'rgba(255, 255, 255, 0.2)',
                 }
               ]}
               onPress={() => setActiveFilter(filter.key as FilterType)}
               activeOpacity={0.7}
             >
-              <Text style={styles.filterTabIcon}>{filter.icon}</Text>
+              <MaterialIcons 
+                name={filter.icon as any} 
+                size={20} 
+                color={activeFilter === filter.key ? '#FFFFFF' : theme.colors.text.secondary}
+                style={styles.filterTabIcon}
+              />
               <Text style={[
                 styles.filterTabText,
                 { 

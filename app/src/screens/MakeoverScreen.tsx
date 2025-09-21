@@ -17,6 +17,7 @@ import {
   Modal,
   Animated,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../theme/ThemeProvider';
@@ -425,7 +426,7 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
           <View style={styles.processingSteps}>
             <View style={styles.processingStep}>
               <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
-                <Text style={styles.stepIconText}>●</Text>
+                <MaterialIcons name="radio-button-checked" size={16} color="#FFFFFF" />
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
                 Analyzing your space
@@ -434,7 +435,7 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
             
             <View style={styles.processingStep}>
               <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
-                <Text style={styles.stepIconText}>●</Text>
+                <MaterialIcons name="radio-button-checked" size={16} color="#FFFFFF" />
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
                 Searching for products for your space
@@ -443,7 +444,7 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
             
             <View style={styles.processingStep}>
               <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
-                <Text style={styles.stepIconText}>●</Text>
+                <MaterialIcons name="radio-button-checked" size={16} color="#FFFFFF" />
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
                 Generating your makeover based on similar products found
@@ -661,9 +662,11 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
               accessibilityLabel="Close image modal"
               accessibilityRole="button"
             >
-              <Text style={[styles.imageModalCloseButtonText, { color: theme.colors.text.primary }]}>
-                ✕
-              </Text>
+              <MaterialIcons 
+                name="close" 
+                size={20} 
+                color={theme.colors.text.primary}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity 

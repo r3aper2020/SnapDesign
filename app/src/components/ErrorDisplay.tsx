@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 
 interface ErrorDisplayProps {
   error: string | null;
@@ -59,9 +60,11 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
                 accessibilityLabel="Dismiss error"
                 accessibilityRole="button"
               >
-                <Text style={[styles.dismissButtonText, { color: theme.colors.text.secondary }]}>
-                  ✕
-                </Text>
+                <MaterialIcons 
+                  name="close" 
+                  size={20} 
+                  color={theme.colors.text.secondary}
+                />
               </TouchableOpacity>
             )}
           </View>

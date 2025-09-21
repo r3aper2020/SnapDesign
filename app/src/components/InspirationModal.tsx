@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { LightbulbIcon } from './icons/DesignIcons';
 
 interface InspirationModalProps {
@@ -101,7 +102,11 @@ export const InspirationModal: React.FC<InspirationModalProps> = ({
               accessibilityLabel="Close inspiration modal"
               accessibilityRole="button"
             >
-              <Text style={[styles.closeText, { color: theme.colors.text.primary }]}>✕</Text>
+              <MaterialIcons 
+                name="close" 
+                size={20} 
+                color={theme.colors.text.primary}
+              />
             </TouchableOpacity>
           </View>
 

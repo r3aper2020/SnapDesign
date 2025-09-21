@@ -17,6 +17,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
@@ -482,7 +483,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               <View style={styles.simpleToggleDots}>
                 {isShowingOriginal ? (
                   // Show single dot for original photo
-                  <View style={[styles.toggleDot, { backgroundColor: theme.colors.primary.main }]} />
+                  <View style={[styles.toggleDot, { backgroundColor: theme.colors.button.accent }]} />
                 ) : (
                   // Show dots for edits
                   Array.from({ length: edits.length + 1 }, (_, index) => (
@@ -492,7 +493,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                         styles.toggleDot,
                         {
                           backgroundColor: index === currentEditIndex 
-                            ? theme.colors.primary.main 
+                            ? theme.colors.button.accent 
                             : theme.colors.text.secondary
                         }
                       ]}
@@ -504,7 +505,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               {/* Edit Button - Top Left Corner (only for design and makeover) */}
               {serviceType !== 'declutter' && (
                 <TouchableOpacity
-                  style={[styles.editButton, { backgroundColor: theme.colors.primary.main }]}
+                  style={[styles.editButton, { backgroundColor: theme.colors.button.accent }]}
                   onPress={handleEditDesign}
                   disabled={isEditing}
                   activeOpacity={0.8}
@@ -519,7 +520,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               {isEditing && (
                 <View style={styles.processingOverlay}>
                   <View style={styles.processingContainer}>
-                    <ActivityIndicator size="large" color={theme.colors.primary.main} />
+                    <ActivityIndicator size="large" color={theme.colors.button.accent} />
                     <Text style={[styles.processingText, { color: theme.colors.text.primary }]}>
                       Processing your edit...
                     </Text>
@@ -529,22 +530,26 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               
               {/* Expand Button - Top Right Corner */}
               <TouchableOpacity
-                style={[styles.simpleExpandButton, { backgroundColor: theme.colors.primary.main }]}
+                style={[styles.simpleExpandButton, { backgroundColor: theme.colors.button.secondary }]}
                 onPress={() => openModal(isShowingOriginal ? 'original' : 'transformed')}
               >
-                <Text style={[styles.simpleButtonText, { color: theme.colors.primary.contrast }]}>
-                  ⛶
-                </Text>
+                <MaterialIcons 
+                  name="fullscreen" 
+                  size={20} 
+                  color={theme.colors.primary.contrast}
+                />
               </TouchableOpacity>
               
               {/* Share Button - Bottom Right Corner */}
               <TouchableOpacity
-                style={[styles.simpleShareButton, { backgroundColor: theme.colors.primary.main }]}
+                style={[styles.simpleShareButton, { backgroundColor: theme.colors.button.success }]}
                 onPress={shareImage}
               >
-                <Text style={[styles.simpleButtonText, { color: theme.colors.primary.contrast }]}>
-                  ⤴
-                </Text>
+                <MaterialIcons 
+                  name="share" 
+                  size={20} 
+                  color={theme.colors.primary.contrast}
+                />
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -564,7 +569,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                 </Text>
                 {isPreloading && (
                   <View style={styles.preloadIndicator}>
-                    <ActivityIndicator size="small" color={theme.colors.primary.main} />
+                    <ActivityIndicator size="small" color={theme.colors.button.secondary} />
                     <Text style={[styles.preloadText, { color: theme.colors.text.secondary }]}>
                       Loading edits...
                     </Text>
@@ -670,13 +675,17 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             style={[
               styles.basicModalCloseButton, 
               { 
-                backgroundColor: theme.colors.primary.main,
+                backgroundColor: theme.colors.button.secondary,
                 shadowColor: theme.colors.shadow.medium
               }
             ]}
             onPress={closeModal}
           >
-            <Text style={[styles.basicModalCloseText, { color: theme.colors.primary.contrast }]}>✕</Text>
+            <MaterialIcons 
+              name="close" 
+              size={20} 
+              color={theme.colors.primary.contrast}
+            />
           </TouchableOpacity>
           
           {/* Image */}
@@ -715,7 +724,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                 style={[
                   styles.basicModalNavButton, 
                   { 
-                    backgroundColor: currentEditIndex === 0 ? theme.colors.text.secondary : theme.colors.primary.main,
+                    backgroundColor: currentEditIndex === 0 ? theme.colors.text.secondary : theme.colors.button.accent,
                     shadowColor: theme.colors.shadow.medium
                   }
                 ]}
@@ -726,7 +735,11 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                 }}
                 disabled={currentEditIndex === 0}
               >
-                <Text style={[styles.basicModalNavText, { color: theme.colors.primary.contrast }]}>←</Text>
+                <MaterialIcons 
+                  name="chevron-left" 
+                  size={20} 
+                  color={theme.colors.primary.contrast}
+                />
               </TouchableOpacity>
               
               <Text style={[
@@ -744,7 +757,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                 style={[
                   styles.basicModalNavButton, 
                   { 
-                    backgroundColor: currentEditIndex >= edits.length ? theme.colors.text.secondary : theme.colors.primary.main,
+                    backgroundColor: currentEditIndex >= edits.length ? theme.colors.text.secondary : theme.colors.button.accent,
                     shadowColor: theme.colors.shadow.medium
                   }
                 ]}
@@ -755,7 +768,11 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                 }}
                 disabled={currentEditIndex >= edits.length}
               >
-                <Text style={[styles.basicModalNavText, { color: theme.colors.primary.contrast }]}>→</Text>
+                <MaterialIcons 
+                  name="chevron-right" 
+                  size={20} 
+                  color={theme.colors.primary.contrast}
+                />
               </TouchableOpacity>
             </View>
           )}
@@ -765,7 +782,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             style={[
               styles.basicModalToggleButton,
               {
-                backgroundColor: theme.colors.primary.main,
+                backgroundColor: theme.colors.button.accent,
                 shadowColor: theme.colors.shadow.medium
               }
             ]}
@@ -830,7 +847,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={[styles.editModalButton, styles.editModalSubmitButton, { backgroundColor: theme.colors.primary.main }]}
+                style={[styles.editModalButton, styles.editModalSubmitButton, { backgroundColor: theme.colors.button.accent }]}
                 onPress={handleEditSubmit}
                 disabled={!editInstructions.trim() || isEditing}
               >
@@ -847,7 +864,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         <TouchableOpacity
-          style={[styles.bottomNavButton, { backgroundColor: theme.colors.primary.main }]}
+          style={[styles.bottomNavButton, { backgroundColor: theme.colors.button.primary }]}
           onPress={() => navigation.navigate('MainTabs', { screen: 'Design' })}
         >
           <Text style={[styles.bottomNavButtonText, { color: theme.colors.primary.contrast }]}>

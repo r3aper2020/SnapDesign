@@ -12,6 +12,7 @@ import {
   Animated,
   StatusBar,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -21,137 +22,21 @@ import { designStorage, SavedDesign } from '../services/DesignStorage';
 
 const { width, height } = Dimensions.get('window');
 
-// Clean, minimal icon components
+// Clean, minimal icon components using MaterialIcons
 const CameraIcon = ({ size = 24, color = '#666' }) => (
-  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-    <View style={{
-      width: size * 0.8,
-      height: size * 0.6,
-      borderWidth: 2,
-      borderColor: color,
-      borderRadius: size * 0.1,
-      backgroundColor: 'transparent',
-    }}>
-      <View style={{
-        position: 'absolute',
-        top: -size * 0.15,
-        right: -size * 0.1,
-        width: size * 0.3,
-        height: size * 0.2,
-        borderWidth: 2,
-        borderColor: color,
-        borderRadius: size * 0.05,
-        backgroundColor: 'transparent',
-      }} />
-      <View style={{
-        position: 'absolute',
-        top: size * 0.15,
-        left: size * 0.2,
-        width: size * 0.15,
-        height: size * 0.15,
-        borderRadius: size * 0.075,
-        backgroundColor: color,
-      }} />
-    </View>
-  </View>
+  <MaterialIcons name="camera-alt" size={size} color={color} />
 );
 
 const SparkleIcon = ({ size = 24, color = '#666' }) => (
-  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-    <View style={{
-      width: size * 0.3,
-      height: size * 0.3,
-      backgroundColor: color,
-      borderRadius: size * 0.15,
-      position: 'absolute',
-    }} />
-    <View style={{
-      width: size * 0.6,
-      height: 2,
-      backgroundColor: color,
-      position: 'absolute',
-      transform: [{ rotate: '45deg' }],
-    }} />
-    <View style={{
-      width: size * 0.6,
-      height: 2,
-      backgroundColor: color,
-      position: 'absolute',
-      transform: [{ rotate: '-45deg' }],
-    }} />
-  </View>
+  <MaterialIcons name="auto-awesome" size={size} color={color} />
 );
 
 const MagicWandIcon = ({ size = 24, color = '#666' }) => (
-  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-    <View style={{
-      width: size * 0.6,
-      height: 2,
-      backgroundColor: color,
-      position: 'absolute',
-      transform: [{ rotate: '45deg' }],
-    }} />
-    <View style={{
-      position: 'absolute',
-      top: -size * 0.1,
-      right: -size * 0.1,
-      width: size * 0.2,
-      height: size * 0.2,
-      backgroundColor: color,
-      borderRadius: size * 0.1,
-    }} />
-    <View style={{
-      position: 'absolute',
-      top: -size * 0.2,
-      right: -size * 0.2,
-      width: size * 0.1,
-      height: size * 0.1,
-      backgroundColor: color,
-      borderRadius: size * 0.05,
-    }} />
-  </View>
+  <MaterialIcons name="auto-fix-high" size={size} color={color} />
 );
 
-const TrendingIcon = ({ size = 24, color = '#666' }) => (
-  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-    <View style={{
-      width: size * 0.8,
-      height: size * 0.8,
-      borderWidth: 2,
-      borderColor: color,
-      borderRadius: size * 0.4,
-      backgroundColor: 'transparent',
-      position: 'relative',
-    }}>
-      <View style={{
-        position: 'absolute',
-        top: size * 0.1,
-        left: size * 0.2,
-        width: size * 0.15,
-        height: size * 0.15,
-        backgroundColor: color,
-        borderRadius: size * 0.075,
-      }} />
-      <View style={{
-        position: 'absolute',
-        top: size * 0.3,
-        left: size * 0.4,
-        width: size * 0.15,
-        height: size * 0.15,
-        backgroundColor: color,
-        borderRadius: size * 0.075,
-      }} />
-      <View style={{
-        position: 'absolute',
-        top: size * 0.5,
-        left: size * 0.1,
-        width: size * 0.15,
-        height: size * 0.15,
-        backgroundColor: color,
-        borderRadius: size * 0.075,
-      }} />
-    </View>
-  </View>
+const ShoppingCartIcon = ({ size = 24, color = '#666' }) => (
+  <MaterialIcons name="shopping-cart" size={size} color={color} />
 );
 
 
@@ -367,7 +252,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               ]}
             >
               <TouchableOpacity
-                style={[styles.authButton, { backgroundColor: theme.colors.primary.main }]}
+                style={[styles.authButton, { backgroundColor: theme.colors.button.primary }]}
                 onPress={() => navigation.navigate('Signup')}
                 activeOpacity={0.8}
               >
@@ -377,11 +262,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={[styles.authButton, styles.authButtonSecondary, { borderColor: theme.colors.primary.main }]}
+                style={[styles.authButton, styles.authButtonSecondary, { borderColor: theme.colors.button.secondary }]}
                 onPress={() => navigation.navigate('Login')}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.authButtonText, { color: theme.colors.primary.main }]}>
+                <Text style={[styles.authButtonText, { color: theme.colors.button.secondary }]}>
                   Sign In
                 </Text>
               </TouchableOpacity>
@@ -488,16 +373,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               },
               { 
                 step: 4, 
-                icon: <TrendingIcon size={32} color="#FFFFFF" />, 
+                icon: <ShoppingCartIcon size={32} color="#FFFFFF" />, 
                 title: 'Shop & Create', 
                 description: 'Get products to make it real'
               }
             ].map((item, index) => (
               <View key={index} style={styles.stepItem}>
-                <View style={[styles.stepNumber, { backgroundColor: theme.colors.primary.main }]}>
+                <View style={[styles.stepNumber, { backgroundColor: theme.colors.button.primary }]}>
                   <Text style={styles.stepNumberText}>{item.step}</Text>
                 </View>
-                <View style={[styles.stepIcon, { backgroundColor: theme.colors.primary.main }]}>
+                <View style={[styles.stepIcon, { backgroundColor: theme.colors.button.accent }]}>
                   {item.icon}
                 </View>
                 <View style={styles.stepContent}>

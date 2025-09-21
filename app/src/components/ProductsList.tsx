@@ -8,6 +8,7 @@ import {
   Linking,
   Dimensions,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
 import { Product } from '../navigation/AppNavigator';
@@ -54,13 +55,17 @@ export const ProductsList: React.FC<ProductsListProps> = ({
         <View style={styles.productHeader}>
           <TouchableOpacity
             style={[styles.checkbox, { 
-              borderColor: theme.colors.primary.main,
-              backgroundColor: isChecked ? theme.colors.primary.main : 'transparent'
+              borderColor: theme.colors.button.success,
+              backgroundColor: isChecked ? theme.colors.button.success : 'transparent'
             }]}
             onPress={() => onToggleItem(index)}
           >
             {isChecked && (
-              <Text style={[styles.checkmark, { color: theme.colors.primary.contrast }]}>✓</Text>
+              <MaterialIcons 
+                name="check" 
+                size={16} 
+                color={theme.colors.primary.contrast}
+              />
             )}
           </TouchableOpacity>
           
@@ -72,7 +77,7 @@ export const ProductsList: React.FC<ProductsListProps> = ({
               {item.type}
             </Text>
             {item.estPriceUSD && (
-              <Text style={[styles.productPrice, { color: theme.colors.primary.main }]}>
+              <Text style={[styles.productPrice, { color: theme.colors.button.success }]}>
                 ${item.estPriceUSD.toFixed(2)}
               </Text>
             )}
@@ -85,19 +90,19 @@ export const ProductsList: React.FC<ProductsListProps> = ({
         </View>
 
         <View style={styles.productActions}>
-          <View style={[styles.quantityBadge, { backgroundColor: theme.colors.primary.main }]}>
-            <Text style={[styles.quantityText, { color: theme.colors.primary.contrast }]}>
+          <View style={[styles.quantityBadge, { backgroundColor: theme.colors.text.primary }]}>
+            <Text style={[styles.quantityText, { color: theme.colors.background.primary }]}>
               Qty: {quantity}
             </Text>
           </View>
 
           {item.amazonLink && (
             <TouchableOpacity
-              style={[styles.amazonButton, { backgroundColor: theme.colors.primary.main }]}
+              style={[styles.amazonButton, { backgroundColor: theme.colors.button.secondary }]}
               onPress={() => handleAmazonPress(item.amazonLink)}
             >
               <LinearGradient
-                colors={[theme.colors.primary.main, theme.colors.primary.dark]}
+                colors={[theme.colors.button.secondary, theme.colors.secondary.dark]}
                 style={styles.amazonButtonContent}
               >
                 <Text style={[styles.amazonButtonText, { color: theme.colors.primary.contrast }]}>

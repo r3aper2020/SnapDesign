@@ -378,7 +378,7 @@ class DesignStorage {
         `DELETE FROM designs WHERE id = ?`,
         [designId]
       );
-      console.log('🗑️ Design deleted from database:', designId);
+      console.log('Design deleted from database:', designId);
     } catch (error) {
       console.error('❌ Error deleting design:', error);
       throw new Error('Failed to delete design');

@@ -6,6 +6,7 @@ import {
   FlatList,
   StyleSheet,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeProvider';
 
 // ============================================================================
@@ -41,18 +42,22 @@ export const CleaningStepsList: React.FC<CleaningStepsListProps> = ({
     return (
       <View style={[styles.stepItem, { 
         backgroundColor: theme.colors.background.secondary,
-        borderColor: theme.colors.border.primary 
+        borderColor: theme.colors.border.light 
       }]}>
         <View style={styles.stepHeader}>
           <TouchableOpacity
             style={[styles.checkbox, { 
-              borderColor: theme.colors.primary.main,
-              backgroundColor: isChecked ? theme.colors.primary.main : 'transparent'
+              borderColor: theme.colors.button.success,
+              backgroundColor: isChecked ? theme.colors.button.success : 'transparent'
             }]}
             onPress={() => onToggleItem(index)}
           >
             {isChecked && (
-              <Text style={[styles.checkmark, { color: theme.colors.primary.contrast }]}>✓</Text>
+              <MaterialIcons 
+                name="check" 
+                size={16} 
+                color={theme.colors.primary.contrast}
+              />
             )}
           </TouchableOpacity>
           
@@ -64,9 +69,12 @@ export const CleaningStepsList: React.FC<CleaningStepsListProps> = ({
               {item.description}
             </Text>
             {item.estimatedTime && (
-              <Text style={[styles.stepTime, { color: theme.colors.primary.main }]}>
-                ⏱️ {item.estimatedTime}
-              </Text>
+              <View style={styles.stepTimeContainer}>
+                <MaterialIcons name="schedule" size={16} color={theme.colors.button.warning} />
+                <Text style={[styles.stepTime, { color: theme.colors.button.warning }]}>
+                  {item.estimatedTime}
+                </Text>
+              </View>
             )}
           </View>
         </View>
@@ -145,9 +153,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     lineHeight: 20,
   },
+  stepTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
   stepTime: {
     fontSize: 12,
     fontWeight: '500',
+    marginLeft: 4,
   },
   emptyContainer: {
     padding: 40,

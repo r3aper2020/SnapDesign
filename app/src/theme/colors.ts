@@ -98,6 +98,15 @@ export const colors = {
       dark: 'rgba(0, 0, 0, 0.25)',
     },
     
+    // Button colors for variety
+    button: {
+      primary: '#FF6A3D', // Orange - main actions
+      secondary: '#2F80ED', // Blue - secondary actions
+      success: '#30D158', // Green - positive actions
+      accent: '#9B51E0', // Purple - special actions
+      warning: '#FF9F0A', // Yellow - caution actions
+    },
+    
     // Gradient colors for ReVibe brand
     gradient: {
       primary: ['#FF6A3D', '#FF3E81', '#9B51E0'], // Orange → Pink → Purple
@@ -204,6 +213,15 @@ export const colors = {
       light: 'rgba(0, 0, 0, 0.4)',
       medium: 'rgba(0, 0, 0, 0.6)',
       dark: 'rgba(0, 0, 0, 0.8)',
+    },
+    
+    // Button colors for variety
+    button: {
+      primary: '#FF6A3D', // Orange - main actions
+      secondary: '#2F80ED', // Blue - secondary actions
+      success: '#30D158', // Green - positive actions
+      accent: '#9B51E0', // Purple - special actions
+      warning: '#FF9F0A', // Yellow - caution actions
     },
     
     // Gradient colors for ReVibe brand
