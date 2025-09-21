@@ -230,18 +230,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const handleViewDesign = (design: SavedDesign) => {
     if (design.serviceType === 'declutter') {
-      navigation.navigate('DeclutterResult', {
+      navigation.navigate('Result', {
         generatedImage: design.generatedImage,
         originalImage: design.originalImage,
         cleaningSteps: design.cleaningSteps || [],
         description: design.description,
+        serviceType: 'declutter'
       });
     } else if (design.serviceType === 'makeover') {
-      navigation.navigate('MakeoverResult', {
+      navigation.navigate('Result', {
         originalImage: design.originalImage,
-        editedImage: design.generatedImage,
+        generatedImage: design.generatedImage,
         description: design.description,
         products: design.products || [],
+        designId: design.id,
+        serviceType: 'makeover'
       });
     } else {
       navigation.navigate('Result', {
@@ -250,6 +253,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         products: design.products || [],
         designId: design.id,
         description: design.description,
+        serviceType: 'design'
       });
     }
   };

@@ -316,8 +316,9 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
         // Small delay to let progress bar complete before navigation
         await new Promise(resolve => setTimeout(resolve, 600));
 
+        let savedDesignId = '';
         try {
-          await designStorage.saveDesign({
+          const savedDesign = await designStorage.saveDesign({
             description: formState.description.trim(),
             originalImage: imageBase64,
             generatedImage: data.editedImageBase64,
@@ -325,16 +326,19 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
             products: data.products.items || data.products,
             tokenUsage: data.tokenUsage
           });
+          savedDesignId = savedDesign.id;
         } catch (saveError) {
           console.error('Error saving makeover:', saveError);
         }
 
-        navigation.navigate('MakeoverResult', {
-          generatedImage: data.editedImageBase64,
-          originalImage: imageBase64,
-          products: data.products.items || data.products,
-          description: formState.description.trim()
-        });
+      navigation.navigate('Result', {
+        generatedImage: data.editedImageBase64,
+        originalImage: imageBase64,
+        products: data.products.items || data.products,
+        designId: savedDesignId,
+        description: formState.description.trim(),
+        serviceType: 'makeover'
+      });
       } else {
         throw new Error('The makeover server returned an unexpected response. Please try again.');
       }

@@ -1,8 +1,5 @@
-// Navigation types (placeholder for when you add navigation)
-export interface NavigationProps {
-  navigation: any;
-  route: any;
-}
+// Re-export types from navigation for consistency
+export type { Product, CleaningStep, RootStackParamList } from '../navigation/AppNavigator';
 
 // Common component props
 export interface BaseComponentProps {
@@ -20,15 +17,6 @@ export interface ButtonProps {
 
 // Service types
 export type ServiceType = 'design' | 'declutter' | 'makeover';
-
-// Cleaning step interface
-export interface CleaningStep {
-  id: string;
-  title: string;
-  description: string;
-  completed: boolean;
-  estimatedTime?: string;
-}
 
 // Service option interface
 export interface ServiceOption {

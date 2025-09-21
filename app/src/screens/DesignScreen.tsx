@@ -332,7 +332,8 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           generatedImage: data.editedImageBase64,
           originalImage: imageBase64,
           products: data.products.items || data.products,
-          description: formState.description.trim()
+          description: formState.description.trim(),
+          serviceType: 'design'
         });
       } else {
         throw new Error('The design server returned an unexpected response. Please try again.');

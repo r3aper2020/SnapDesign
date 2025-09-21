@@ -27,6 +27,7 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
 import { endpoints } from '../config/api';
+import { ProductsList, CleaningStepsList } from '../components';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,6 +36,14 @@ const { width, height } = Dimensions.get('window');
 // ============================================================================
 type ResultScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Result'>;
 type ResultScreenRouteProp = RouteProp<RootStackParamList, 'Result'>;
+
+interface CleaningStep {
+  id: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  estimatedTime?: string;
+}
 
 interface ResultScreenProps {
   navigation: ResultScreenNavigationProp;
@@ -53,19 +62,29 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     generatedImage = '', 
     originalImage = '', 
     products = [], 
+    cleaningSteps = [],
     designId = '', 
-    description = ''
+    description = '',
+    serviceType = 'design'
   } = route.params;
+  
+  // Handle different parameter names for makeover vs design
+  const currentImage = serviceType === 'makeover' 
+    ? (route.params as any).editedImage || generatedImage 
+    : generatedImage;
   
   // Image comparison state
   const [isShowingOriginal, setIsShowingOriginal] = useState(false);
   
-  // Variations state
-  const [currentVariationIndex, setCurrentVariationIndex] = useState(0);
-  const [variations, setVariations] = useState<any[]>([]);
+  // Edits state
+  const [currentEditIndex, setCurrentEditIndex] = useState(0);
+  const [edits, setEdits] = useState<any[]>([]);
   
   // Products state (can be updated after edits)
   const [currentProducts, setCurrentProducts] = useState(route?.params?.products || []);
+  
+  // Cleaning steps state (for declutter service)
+  const [currentCleaningSteps, setCurrentCleaningSteps] = useState<CleaningStep[]>(cleaningSteps);
   
   // Image preloading state
   const [isPreloading, setIsPreloading] = useState(false);
@@ -74,7 +93,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalImageType, setModalImageType] = useState<'original' | 'transformed'>('transformed');
-  const [lastVariationIndex, setLastVariationIndex] = useState(0);
+  const [lastEditIndex, setLastEditIndex] = useState(0);
   
   // Shopping list state
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
@@ -116,7 +135,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     }
   };
 
-  // Load checkbox states and variations when component mounts
+  // Load checkbox states and edits when component mounts
   useEffect(() => {
     const loadData = async () => {
       if (designId) {
@@ -125,13 +144,13 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
           const savedStates = await designStorage.loadCheckboxStates(designId);
           setCheckedItems(savedStates);
           
-                // Load edit history/variations
+                // Load edit history
                 const editHistory = await designStorage.getEditsForDesign(designId);
-                setVariations(editHistory);
+                setEdits(editHistory);
           
           // Preload all images
           const allImages = [
-            generatedImage,
+            currentImage,
             ...editHistory.map(edit => edit.editedImage)
           ].filter(Boolean);
           
@@ -143,7 +162,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     };
 
     loadData();
-  }, [designId]);
+  }, [designId, currentImage]);
 
   // Start pulsing glow animation
   useEffect(() => {
@@ -194,12 +213,14 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
 
     try {
       const requestBody = {
-        imageBase64: generatedImage,
-        description: editInstructions.trim(),
-        mimeType: 'image/jpeg'
+        imageBase64: currentImage,
+        editInstructions: editInstructions.trim(),
+        mimeType: 'image/jpeg',
+        serviceType: serviceType
       };
 
-      const response = await fetch(endpoints.decorate(), {
+
+      const response = await fetch(endpoints.edit(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -212,8 +233,9 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
       }
 
       const data = await response.json();
+      
 
-      if (data.editedImageBase64 && data.products) {
+      if (data.editedImageBase64) {
         // Save the edit to local storage
         if (designId) {
           try {
@@ -222,7 +244,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               editInstructions: editInstructions.trim(),
               originalImage: generatedImage,
               editedImage: data.editedImageBase64,
-              products: data.products.items || data.products,
+              products: data.products?.items || data.products || [],
               tokenUsage: data.tokenUsage
             });
           } catch (error) {
@@ -230,21 +252,21 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
           }
         }
 
-        // Update the current screen with the new variation
-        // Add the new variation to the variations array
-        const newVariation = {
+        // Update the current screen with the new edit
+        // Add the new edit to the edits array
+        const newEdit = {
           id: Date.now().toString(), // Temporary ID
           designId: designId || '',
           timestamp: Date.now(),
           editInstructions: editInstructions,
           originalImage: generatedImage,
           editedImage: data.editedImageBase64,
-          products: data.products.items || data.products,
+          products: data.products?.items || data.products || [],
           tokenUsage: data.tokenUsage
         };
         
-        // Add the new variation to the variations array
-        setVariations(prev => [newVariation, ...prev]);
+        // Add the new edit to the edits array
+        setEdits(prev => [newEdit, ...prev]);
         
         // Cache the new image immediately
         const newImageUri = `data:image/jpeg;base64,${data.editedImageBase64}`;
@@ -257,16 +279,16 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
         ExpoImage.prefetch([newImageUri]);
         
         // Update products with the new products from the edit
-        setCurrentProducts(data.products.items || data.products);
+        setCurrentProducts(data.products?.items || data.products || []);
         
-        // Switch to the new variation (index 1, since index 0 is the original generated image)
-        setCurrentVariationIndex(1);
+        // Switch to the new edit (index 1, since index 0 is the original generated image)
+        setCurrentEditIndex(1);
         
         // Clear the edit modal
         setShowEditModal(false);
         setEditInstructions('');
       } else {
-        console.error('No edited image returned from server');
+        throw new Error('No edited image returned from server');
       }
     } catch (error) {
       console.error('Error editing design:', error);
@@ -293,22 +315,22 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
   };
 
 
-  // Get current variation prompt
-  const getCurrentVariationPrompt = useCallback(() => {
+  // Get current edit prompt
+  const getCurrentEditPrompt = useCallback(() => {
     if (isShowingOriginal) {
       return "Original photo of your space";
     }
     
-    if (currentVariationIndex === 0) {
+    if (currentEditIndex === 0) {
       // For the first generated design, show the actual prompt used
       return description || "Initial AI-generated design";
     }
     
-    const variation = variations[currentVariationIndex - 1];
-    return variation?.editInstructions || "No prompt available";
-  }, [isShowingOriginal, currentVariationIndex, description, variations]);
+    const edit = edits[currentEditIndex - 1];
+    return edit?.editInstructions || "No prompt available";
+  }, [isShowingOriginal, currentEditIndex, description, edits]);
 
-  // Swipe gesture handler for variations
+  // Swipe gesture handler for edits
   const onSwipeGesture = useCallback((event: any) => {
     const { translationX, state, velocityX } = event.nativeEvent;
     
@@ -316,15 +338,15 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
       const isSwipeLeft = translationX < -30 || velocityX < -500;
       const isSwipeRight = translationX > 30 || velocityX > 500;
       
-      if (isSwipeLeft && currentVariationIndex < variations.length) {
+      if (isSwipeLeft && currentEditIndex < edits.length) {
         // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setCurrentVariationIndex(prev => Math.min(prev + 1, variations.length));
-      } else if (isSwipeRight && currentVariationIndex > 0) {
+        setCurrentEditIndex(prev => Math.min(prev + 1, edits.length));
+      } else if (isSwipeRight && currentEditIndex > 0) {
         // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setCurrentVariationIndex(prev => Math.max(prev - 1, 0));
+        setCurrentEditIndex(prev => Math.max(prev - 1, 0));
       }
     }
-  }, [currentVariationIndex, variations.length]);
+  }, [currentEditIndex, edits.length]);
 
   const openModal = (imageType: 'original' | 'transformed' = 'transformed') => {
     setModalImageType(imageType);
@@ -355,12 +377,18 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
     });
   };
 
+
   // Memoize current image to prevent recalculation on every render
-  const currentImage = useMemo(() => {
-    return currentVariationIndex === 0 
-      ? generatedImage 
-      : variations[currentVariationIndex - 1]?.editedImage;
-  }, [currentVariationIndex, generatedImage, variations]);
+  const displayImage = useMemo(() => {
+    try {
+      return currentEditIndex === 0 
+        ? currentImage 
+        : edits[currentEditIndex - 1]?.editedImage;
+    } catch (error) {
+      console.error('Error calculating display image:', error);
+      return currentImage; // Fallback to original image
+    }
+  }, [currentEditIndex, currentImage, edits]);
 
   // ============================================================================
   // RENDER
@@ -393,12 +421,12 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
           
           {/* Main Image Section */}
           <View style={styles.imageSection}>
-          {/* Variation Counter - Always show for consistent spacing */}
+          {/* Edit Counter - Always show for consistent spacing */}
           <View style={styles.variationCounter}>
             <Text style={[styles.variationCounterText, { color: theme.colors.text.primary }]}>
               {isShowingOriginal 
                 ? 'Original Photo' 
-                : (currentVariationIndex === 0 ? 'Generated Design' : `Variation ${currentVariationIndex}`)
+                : (currentEditIndex === 0 ? 'Generated Design' : `Edit ${currentEditIndex}`)
               }
             </Text>
           </View>
@@ -431,15 +459,15 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                   </View>
                 )
               ) : (
-                currentImage ? (
+                displayImage ? (
                   <ExpoImage 
                     source={{ 
-                      uri: getCachedImageUri(currentImage, currentVariationIndex)
+                      uri: getCachedImageUri(displayImage, currentEditIndex)
                     }} 
                     style={styles.simpleImage}
                     contentFit="cover"
                     cachePolicy="memory-disk"
-                    key={`variation-${currentVariationIndex}`}
+                    key={`edit-${currentEditIndex}`}
                   />
                 ) : (
                   <View style={styles.noImagePlaceholder}>
@@ -450,20 +478,20 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                 )
               )}
               
-              {/* Variation Dots - Centered at Bottom */}
+              {/* Edit Dots - Centered at Bottom */}
               <View style={styles.simpleToggleDots}>
                 {isShowingOriginal ? (
                   // Show single dot for original photo
                   <View style={[styles.toggleDot, { backgroundColor: theme.colors.primary.main }]} />
                 ) : (
-                  // Show dots for variations
-                  Array.from({ length: variations.length + 1 }, (_, index) => (
+                  // Show dots for edits
+                  Array.from({ length: edits.length + 1 }, (_, index) => (
                     <View
                       key={index}
                       style={[
                         styles.toggleDot,
                         {
-                          backgroundColor: index === currentVariationIndex 
+                          backgroundColor: index === currentEditIndex 
                             ? theme.colors.primary.main 
                             : theme.colors.text.secondary
                         }
@@ -473,21 +501,31 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                 )}
               </View>
               
-              {/* Edit Button - Top Left Corner */}
-              <TouchableOpacity
-                style={[styles.simpleEditButton, { backgroundColor: theme.colors.primary.main }]}
-                onPress={handleEditDesign}
-                disabled={isEditing}
-                activeOpacity={0.8}
-              >
-                {isEditing ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary.contrast} />
-                ) : (
-                  <Text style={[styles.simpleButtonText, { color: theme.colors.primary.contrast }]}>
-                    ✏️
+              {/* Edit Button - Top Left Corner (only for design and makeover) */}
+              {serviceType !== 'declutter' && (
+                <TouchableOpacity
+                  style={[styles.editButton, { backgroundColor: theme.colors.primary.main }]}
+                  onPress={handleEditDesign}
+                  disabled={isEditing}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.editButtonText, { color: theme.colors.primary.contrast }]}>
+                    Edit
                   </Text>
-                )}
-              </TouchableOpacity>
+                </TouchableOpacity>
+              )}
+              
+              {/* Processing Overlay */}
+              {isEditing && (
+                <View style={styles.processingOverlay}>
+                  <View style={styles.processingContainer}>
+                    <ActivityIndicator size="large" color={theme.colors.primary.main} />
+                    <Text style={[styles.processingText, { color: theme.colors.text.primary }]}>
+                      Processing your edit...
+                    </Text>
+                  </View>
+                </View>
+              )}
               
               {/* Expand Button - Top Right Corner */}
               <TouchableOpacity
@@ -519,16 +557,16 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               <Text style={[styles.swipeHintText, { color: theme.colors.text.secondary }]}>
                 Tap to switch to generated design
               </Text>
-            ) : variations.length > 0 ? (
+            ) : edits.length > 0 ? (
               <>
                 <Text style={[styles.swipeHintText, { color: theme.colors.text.secondary }]}>
-                  ← Swipe to see variations →
+                  ← Swipe to see edits →
                 </Text>
                 {isPreloading && (
                   <View style={styles.preloadIndicator}>
                     <ActivityIndicator size="small" color={theme.colors.primary.main} />
                     <Text style={[styles.preloadText, { color: theme.colors.text.secondary }]}>
-                      Loading variations...
+                      Loading edits...
                     </Text>
                   </View>
                 )}
@@ -558,97 +596,51 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                   Prompt used:
                 </Text>
                 <Text style={[styles.promptText, { color: theme.colors.text.primary }]}>
-                  {getCurrentVariationPrompt()}
+                  {getCurrentEditPrompt()}
                 </Text>
               </>
             )}
           </View>
         </View>
 
-        {/* Products Section - Always visible */}
-        {currentProducts && currentProducts.length > 0 && (
+        {/* Products/Cleaning Steps Section - Always visible */}
+        {((serviceType === 'declutter' && currentCleaningSteps.length > 0) || 
+          (serviceType !== 'declutter' && currentProducts.length > 0)) && (
           <View style={styles.productsSection}>
-            <View style={styles.productsHeader}>
-              <Text style={[styles.productsTitle, { color: theme.colors.text.primary }]}>
-                Shopping List
-              </Text>
-              <Text style={[styles.productsSubtitle, { color: theme.colors.text.secondary }]}>
-                {checkedItems.size} of {currentProducts.length} items
-              </Text>
-            </View>
-            
-            <View style={styles.productsList}>
-              {currentProducts.map((product: any, index: number) => {
-                const isChecked = checkedItems.has(index);
-                return (
-                  <View key={index} style={[styles.productItem, { 
-                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                    opacity: isChecked ? 0.6 : 1
-                  }]}>
-                    <View style={styles.productContent}>
-                      <TouchableOpacity 
-                        style={[styles.checkbox, { 
-                          borderColor: theme.colors.primary.main,
-                          backgroundColor: isChecked ? theme.colors.primary.main : 'transparent'
-                        }]}
-                        onPress={() => toggleCheckbox(index)}
-                      >
-                        {isChecked && (
-                          <Text style={[styles.checkmark, { color: theme.colors.primary.contrast }]}>
-                            ✓
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                      
-                      <View style={styles.productDetails}>
-                        <View style={styles.productHeader}>
-                          <Text style={[styles.productName, { color: theme.colors.text.primary }]}>
-                            {product.name}
-                          </Text>
-                          <View style={[styles.quantityBadge, { backgroundColor: theme.colors.primary.main }]}>
-                            <Text style={[styles.quantityText, { color: theme.colors.primary.contrast }]}>
-                              {product.qty}
-                            </Text>
-                          </View>
-                        </View>
-                        
-                        <Text style={[styles.productType, { color: theme.colors.text.secondary }]}>
-                          {product.type}
-                        </Text>
-                        
-                        {product.estPriceUSD && (
-                          <Text style={[styles.productPrice, { color: theme.colors.text.primary }]}>
-                            ${product.estPriceUSD.toFixed(2)}
-                          </Text>
-                        )}
-                        
-                        {product.placement?.note && (
-                          <Text style={[styles.placementNote, { color: theme.colors.text.secondary }]}>
-                            {product.placement.note}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    
-                    {product.amazonLink && (
-                      <TouchableOpacity
-                        style={styles.amazonButton}
-                        onPress={() => product.amazonLink && Linking.openURL(product.amazonLink)}
-                      >
-                        <LinearGradient
-                          colors={['#FF9500', '#FF6B00']}
-                          style={styles.amazonButtonContent}
-                        >
-                          <Text style={[styles.amazonButtonText, { color: '#FFFFFF' }]}>
-                            View on Amazon
-                          </Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+            {/* Conditional Content Based on Service Type */}
+            {serviceType === 'declutter' ? (
+              <>
+                <View style={styles.productsHeader}>
+                  <Text style={[styles.productsTitle, { color: theme.colors.text.primary }]}>
+                    Cleaning Steps
+                  </Text>
+                  <Text style={[styles.productsSubtitle, { color: theme.colors.text.secondary }]}>
+                    {checkedItems.size} of {currentCleaningSteps.length} steps completed
+                  </Text>
+                </View>
+                <CleaningStepsList
+                  cleaningSteps={currentCleaningSteps}
+                  checkedItems={checkedItems}
+                  onToggleItem={toggleCheckbox}
+                />
+              </>
+            ) : (
+              <>
+                <View style={styles.productsHeader}>
+                  <Text style={[styles.productsTitle, { color: theme.colors.text.primary }]}>
+                    Shopping List
+                  </Text>
+                  <Text style={[styles.productsSubtitle, { color: theme.colors.text.secondary }]}>
+                    {checkedItems.size} of {currentProducts.length} items
+                  </Text>
+                </View>
+                <ProductsList
+                  products={currentProducts}
+                  checkedItems={checkedItems}
+                  onToggleItem={toggleCheckbox}
+                />
+              </>
+            )}
           </View>
         )}
       </ScrollView>
@@ -702,9 +694,9 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                   <Text>No original image</Text>
                 )
               ) : (
-                currentImage ? (
+                displayImage ? (
                   <ExpoImage 
-                    source={{ uri: getCachedImageUri(currentImage, currentVariationIndex) }} 
+                    source={{ uri: getCachedImageUri(displayImage, currentEditIndex) }} 
                     style={styles.basicModalImage} 
                     contentFit="contain"
                     cachePolicy="memory-disk"
@@ -716,23 +708,23 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             </View>
           </View>
           
-          {/* Navigation Buttons - Only show when viewing variations */}
-          {modalImageType === 'transformed' && variations.length > 0 && (
+          {/* Navigation Buttons - Only show when viewing edits (not for declutter) */}
+          {modalImageType === 'transformed' && edits.length > 0 && serviceType !== 'declutter' && (
             <View style={styles.basicModalNavigation}>
               <TouchableOpacity
                 style={[
                   styles.basicModalNavButton, 
                   { 
-                    backgroundColor: currentVariationIndex === 0 ? theme.colors.text.secondary : theme.colors.primary.main,
+                    backgroundColor: currentEditIndex === 0 ? theme.colors.text.secondary : theme.colors.primary.main,
                     shadowColor: theme.colors.shadow.medium
                   }
                 ]}
                 onPress={() => {
-                  if (currentVariationIndex > 0) {
-                    setCurrentVariationIndex(currentVariationIndex - 1);
+                  if (currentEditIndex > 0) {
+                    setCurrentEditIndex(currentEditIndex - 1);
                   }
                 }}
-                disabled={currentVariationIndex === 0}
+                disabled={currentEditIndex === 0}
               >
                 <Text style={[styles.basicModalNavText, { color: theme.colors.primary.contrast }]}>←</Text>
               </TouchableOpacity>
@@ -745,23 +737,23 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                   borderColor: theme.colors.border.medium
                 }
               ]}>
-                {currentVariationIndex === 0 ? 'Original' : `Variation ${currentVariationIndex}`}
+                {currentEditIndex === 0 ? 'Original' : `Edit ${currentEditIndex}`}
               </Text>
               
               <TouchableOpacity
                 style={[
                   styles.basicModalNavButton, 
                   { 
-                    backgroundColor: currentVariationIndex >= variations.length ? theme.colors.text.secondary : theme.colors.primary.main,
+                    backgroundColor: currentEditIndex >= edits.length ? theme.colors.text.secondary : theme.colors.primary.main,
                     shadowColor: theme.colors.shadow.medium
                   }
                 ]}
                 onPress={() => {
-                  if (currentVariationIndex < variations.length) {
-                    setCurrentVariationIndex(currentVariationIndex + 1);
+                  if (currentEditIndex < edits.length) {
+                    setCurrentEditIndex(currentEditIndex + 1);
                   }
                 }}
-                disabled={currentVariationIndex >= variations.length}
+                disabled={currentEditIndex >= edits.length}
               >
                 <Text style={[styles.basicModalNavText, { color: theme.colors.primary.contrast }]}>→</Text>
               </TouchableOpacity>
@@ -779,18 +771,18 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
             ]}
             onPress={() => {
               if (modalImageType === 'original') {
-                // When switching to variations, go back to last variation we were on
-                setCurrentVariationIndex(lastVariationIndex);
+                // When switching to edits, go back to last edit we were on
+                setCurrentEditIndex(lastEditIndex);
                 setModalImageType('transformed');
               } else {
-                // When switching to original, remember current variation
-                setLastVariationIndex(currentVariationIndex);
+                // When switching to original, remember current edit
+                setLastEditIndex(currentEditIndex);
                 setModalImageType('original');
               }
             }}
           >
             <Text style={[styles.basicModalToggleText, { color: theme.colors.primary.contrast }]}>
-              {modalImageType === 'original' ? 'Show Variations' : 'Show Original'}
+              {modalImageType === 'original' ? 'Show Edits' : 'Show Original'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1051,6 +1043,8 @@ const styles = StyleSheet.create({
   simpleImageContainer: {
     position: 'relative',
     alignSelf: 'center',
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   simpleImage: {
     width: (width - 40) * 0.85,
@@ -1066,13 +1060,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  simpleEditButton: {
+  editButton: {
     position: 'absolute',
     top: 12,
     left: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1080,6 +1074,32 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
+  },
+  editButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  processingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  processingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  processingText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 12,
+    textAlign: 'center',
   },
   simpleExpandButton: {
     position: 'absolute',

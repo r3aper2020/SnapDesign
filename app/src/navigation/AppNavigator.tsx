@@ -7,13 +7,34 @@ import { ResultScreen } from '../screens/ResultScreen';
 import { DesignScreen } from '../screens/DesignScreen';
 import { ServiceSelectionScreen } from '../screens/ServiceSelectionScreen';
 import { DeclutterScreen } from '../screens/DeclutterScreen';
-import { DeclutterResultScreen } from '../screens/DeclutterResultScreen';
 import { MakeoverScreen } from '../screens/MakeoverScreen';
-import { MakeoverResultScreen } from '../screens/MakeoverResultScreen';
 import { LoginScreen, SignupScreen } from '../screens';
 import { BottomTabNavigator } from './BottomTabNavigator';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../theme';
+
+// Common types for navigation parameters
+export interface Product {
+  name: string;
+  type: string;
+  qty: number;
+  color?: string;
+  estPriceUSD?: number;
+  keywords: string[];
+  placement?: {
+    note?: string;
+    bboxNorm?: number[];
+  };
+  amazonLink?: string;
+}
+
+export interface CleaningStep {
+  id: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  estimatedTime?: string;
+}
 
 export type RootStackParamList = {
   MainTabs: { screen?: string } | undefined;
@@ -21,56 +42,16 @@ export type RootStackParamList = {
   ServiceSelection: undefined;
   Design: undefined;
   Declutter: undefined;
-  DeclutterResult: {
-    generatedImage: string;
-    originalImage: string;
-    cleaningSteps: Array<{
-      id: string;
-      title: string;
-      description: string;
-      completed: boolean;
-      estimatedTime?: string;
-    }>;
-    description: string;
-  };
   Makeover: undefined;
-  MakeoverResult: {
-    originalImage: string;
-    editedImage: string;
-    description: string;
-    products: Array<{
-      name: string;
-      type: string;
-      qty: number;
-      color?: string;
-      estPriceUSD?: number;
-      keywords: string[];
-      placement?: {
-        note?: string;
-        bboxNorm?: number[];
-      };
-      amazonLink?: string;
-    }>;
-  };
   Search: { keywords: string[] };
   Result: { 
     generatedImage: string;
     originalImage: string;
-    products: Array<{
-      name: string;
-      type: string;
-      qty: number;
-      color?: string;
-      estPriceUSD?: number;
-      keywords: string[];
-      placement?: {
-        note?: string;
-        bboxNorm?: number[];
-      };
-      amazonLink?: string;
-    }>;
+    products?: Product[];
+    cleaningSteps?: CleaningStep[];
     designId?: string;
     description: string;
+    serviceType?: 'design' | 'makeover' | 'declutter';
   };
   SavedDesigns: undefined;
   Settings: undefined;
@@ -111,9 +92,17 @@ export const AppNavigator = () => {
           },
         }}
       >
+        {/* Main Navigation */}
         <Stack.Screen 
           name="MainTabs" 
           component={BottomTabNavigator} 
+          options={{ headerShown: false }}
+        />
+        
+        {/* Service Screens */}
+        <Stack.Screen 
+          name="ServiceSelection" 
+          component={ServiceSelectionScreen} 
           options={{ headerShown: false }}
         />
         <Stack.Screen 
@@ -122,18 +111,8 @@ export const AppNavigator = () => {
           options={{ headerShown: false }}
         />
         <Stack.Screen 
-          name="ServiceSelection" 
-          component={ServiceSelectionScreen} 
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen 
           name="Declutter" 
           component={DeclutterScreen} 
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen 
-          name="DeclutterResult" 
-          component={DeclutterResultScreen} 
           options={{ headerShown: false }}
         />
         <Stack.Screen 
@@ -141,9 +120,11 @@ export const AppNavigator = () => {
           component={MakeoverScreen} 
           options={{ headerShown: false }}
         />
+        
+        {/* Result and Search Screens */}
         <Stack.Screen 
-          name="MakeoverResult" 
-          component={MakeoverResultScreen} 
+          name="Result" 
+          component={ResultScreen} 
           options={{ headerShown: false }}
         />
         <Stack.Screen 
@@ -151,11 +132,8 @@ export const AppNavigator = () => {
           component={SearchScreen} 
           options={{ title: 'Find Products' }}
         />
-        <Stack.Screen 
-          name="Result" 
-          component={ResultScreen} 
-          options={{ headerShown: false }}
-        />
+        
+        {/* Auth Screens */}
         <Stack.Screen 
           name="Login" 
           component={LoginScreen} 

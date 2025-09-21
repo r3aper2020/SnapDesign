@@ -300,11 +300,12 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
           console.error('Error saving declutter plan:', saveError);
         }
 
-        navigation.navigate('DeclutterResult', {
+        navigation.navigate('Result', {
           generatedImage: data.editedImageBase64,
           originalImage: imageBase64,
           cleaningSteps: data.cleaningSteps,
-          description: "Clean and organize this cluttered space"
+          description: "Clean and organize this cluttered space",
+          serviceType: 'declutter'
         });
       } else {
         throw new Error('The decluttering server returned an unexpected response. Please try again.');

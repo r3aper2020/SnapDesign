@@ -92,6 +92,7 @@ const designService: ServiceModule = {
         const textModel = genAI.getGenerativeModel({ model: textModelName });
 
         const isDeclutterService = serviceType === 'declutter';
+        const isMakeoverService = serviceType === 'makeover';
         
         const decoratePrompt = isDeclutterService 
           ? `This is the AFTER photo of the same room.
@@ -112,31 +113,123 @@ Living areas show only staged furniture and original decor (no extra items).
 Furniture, layout, walls, doors, and windows remain unchanged.
 
 The result: a room that looks as if a professional home stager has completely decluttered and organized it — clean, empty, and ready to show.`
-          : `You are a professional interior designer. Add decorations and enhancements to this space according to the user's request: "${description || 'decorate this space'}".
+          : isMakeoverService
+          ? `You are a professional interior designer and home makeover specialist with expert spatial awareness. 
+
+🎯 PRIMARY OBJECTIVE: Follow the user's EXACT vision and requirements: "${description || 'complete room makeover'}"
+
+CRITICAL: The user's specific instructions are the TOP PRIORITY. Every design decision must align with their vision.
+
+SPATIAL AWARENESS & CONTEXT UNDERSTANDING:
+- ANALYZE the space first: identify room type, doorways, windows, pathways, and functional areas
+- NEVER block doorways, entrances, exits, or walkways with furniture or decorations
+- NEVER place items in front of doors, windows, or clear pathways
+- RESPECT the room's function: bedrooms need clear paths to bed, kitchens need clear work areas, etc.
+- UNDERSTAND traffic flow: keep main pathways completely clear
+- RECOGNIZE architectural features: mantles, built-ins, alcoves are good for decorations
+- IDENTIFY appropriate surfaces: walls, shelves, tables, floors (away from pathways)
+
+CRITICAL CONSTRAINTS - ROOM LAYOUT MUST REMAIN UNCHANGED:
+- DO NOT change the room layout, structure, or architecture
+- DO NOT move, remove, or add walls, doors, or windows
+- DO NOT change the basic floor plan or room dimensions
+- DO NOT alter the fundamental room structure
+- KEEP ALL DOORWAYS, ENTRANCES, AND PATHWAYS COMPLETELY CLEAR
+- NEVER place items that would obstruct movement or access
+
+WHAT YOU CAN CHANGE (following user's specific requests):
+- Wall colors, paint, wallpaper, and wall treatments
+- Flooring materials, rugs, and floor coverings
+- Furniture styles, colors, and arrangements (within the same layout)
+- Lighting fixtures, lamps, and lighting design
+- Decorative elements, artwork, and accessories
+- Window treatments, curtains, and blinds
+- Textiles, pillows, throws, and soft furnishings
+- Plants, decorative objects, and styling elements
+
+FURNITURE & DECORATION PLACEMENT:
+- Wall decorations: on walls, not blocking pathways
+- Floor items: in corners, against walls, or in designated areas away from doorways
+- Table decorations: on existing surfaces, not blocking access
+- Plants: in corners, on shelves, or designated plant areas
+- Rugs: in seating areas, not blocking doorways or pathways
+- Artwork: on walls, above furniture, in appropriate focal points
+- Furniture: maintain clear pathways and access to all areas
+
+MAKEOVER REQUIREMENTS:
+- PRIORITIZE the user's specific style, colors, and aesthetic preferences
+- Create a complete visual transformation that matches their exact vision
+- Apply the requested style and aesthetic throughout the space
+- Ensure all changes work together cohesively
+- Use the colors, textures, and materials the user specifically requested
+- Maintain realistic proportions and proper lighting
+- Create a polished, magazine-worthy result that fulfills their vision
+- ALWAYS maintain clear pathways and access to all areas
+
+STYLE EXECUTION (adapt based on user's specific requests):
+- If user requests modern: clean lines, neutral colors, minimal decor, contemporary furniture
+- If user requests traditional: classic furniture, warm colors, rich textures, timeless elements
+- If user requests bohemian: eclectic mix, vibrant colors, layered textures, artistic elements
+- If user requests minimalist: simple furniture, neutral palette, clean surfaces, essential items only
+- If user requests rustic: natural materials, earthy colors, vintage elements, cozy textures
+- If user specifies colors: use those exact colors prominently
+- If user mentions specific furniture: incorporate that style
+- If user wants a theme: fully embrace that theme
+
+Transform this space into a complete makeover that EXACTLY reflects the user's vision: "${description || 'complete room makeover'}" while keeping the room layout exactly the same and maintaining clear pathways and access to all areas.`
+          : `You are a professional interior designer with expert spatial awareness. 
+
+🎯 PRIMARY OBJECTIVE: Follow the user's EXACT request: "${description || 'decorate this space'}"
+
+CRITICAL: The user's specific instructions are the TOP PRIORITY. Every decoration and enhancement must align with their exact request.
+
+SPATIAL AWARENESS & CONTEXT UNDERSTANDING:
+- ANALYZE the space first: identify room type, doorways, windows, pathways, and functional areas
+- NEVER block doorways, entrances, exits, or walkways with decorations
+- NEVER place items in front of doors, windows, or clear pathways
+- RESPECT the room's function: bedrooms need clear paths to bed, kitchens need clear work areas, etc.
+- UNDERSTAND traffic flow: keep main pathways completely clear
+- RECOGNIZE architectural features: mantles, built-ins, alcoves are good for decorations
+- IDENTIFY appropriate surfaces: walls, shelves, tables, floors (away from pathways)
 
 IMPORTANT CONSTRAINTS:
 - DO NOT remove, move, or change existing doors, windows, walls, or room layout
 - DO NOT change the basic structure or architecture of the space
 - DO NOT remove existing furniture unless specifically requested
 - ONLY add new decorative elements, accessories, and enhancements
-- Keep all existing pathways, entrances, and exits completely clear
+- KEEP ALL DOORWAYS, ENTRANCES, AND PATHWAYS COMPLETELY CLEAR
+- NEVER place items that would obstruct movement or access
 
-WHAT TO ADD:
-- Decorative items, accessories, and enhancements as requested
-- Plants, artwork, lighting, and decorative objects
-- Seasonal decorations, colors, and themed elements
-- Soft furnishings like pillows, throws, and rugs
-- Wall decorations, mirrors, and hanging elements
+WHAT TO ADD (based on user's specific request):
+- Decorative items, accessories, and enhancements as specifically requested
+- Plants, artwork, lighting, and decorative objects the user mentioned
+- Seasonal decorations, colors, and themed elements they specified
+- Soft furnishings like pillows, throws, and rugs they requested
+- Wall decorations, mirrors, and hanging elements they want
+- Any specific items, colors, or styles they mentioned
+
+PLACEMENT GUIDELINES:
+- Wall decorations: on walls, not blocking pathways
+- Floor items: in corners, against walls, or in designated areas away from doorways
+- Table decorations: on existing surfaces, not blocking access
+- Plants: in corners, on shelves, or designated plant areas
+- Rugs: in seating areas, not blocking doorways or pathways
+- Artwork: on walls, above furniture, in appropriate focal points
 
 TECHNICAL REQUIREMENTS:
+- PRIORITIZE the user's specific requests above all else
 - Keep scale realistic and proportional to the space
 - Attach items where plausible (walls, mantle, door frame, ground, etc.)
 - Avoid brand logos and text
 - Use appropriate lighting and shadows for realism
 - Ensure all additions complement the existing space
 - Maintain the original room's function and flow
+- If user specifies colors: use those exact colors
+- If user mentions specific items: include those items
+- If user wants a theme: fully embrace that theme
+- ALWAYS maintain clear pathways and access to all areas
 
-Create a tasteful, well-styled space by adding the requested decorations while preserving the original room structure and layout.`;
+Create a tasteful, well-styled space by adding the EXACT decorations and enhancements the user requested: "${description || 'decorate this space'}" while preserving the original room structure, layout, and maintaining clear pathways and access to all areas.`;
 
         let gen1;
         try {
@@ -288,6 +381,74 @@ REALISTIC TIME ESTIMATES:
 - Consider the actual amount of items visible in the image
 
 Create 4-6 practical, contextual steps that are specific to the room type and items actually visible in the ORIGINAL image. Make the steps meaningful and supportive for someone who doesn't know where to start.`
+          : isMakeoverService
+          ? `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the complete makeover shown in EDITED.
+
+The user requested: "${description}"
+
+This is a COMPLETE ROOM MAKEOVER - analyze all the changes made to transform the space:
+
+MAKEOVER ANALYSIS:
+- Wall treatments: paint colors, wallpaper, wall art, mirrors
+- Flooring changes: new flooring, rugs, floor treatments
+- Furniture updates: new furniture styles, colors, arrangements
+- Lighting transformations: new fixtures, lamps, lighting design
+- Decorative elements: artwork, plants, accessories, styling
+- Window treatments: curtains, blinds, window decor
+- Textiles and soft furnishings: pillows, throws, bedding, upholstery
+
+IMPORTANT: Include BOTH visible items AND the materials/supplies used to create them:
+
+VISIBLE ITEMS: Furniture, decorations, plants, lights, artwork, etc. that you can see in the image
+MATERIALS/SUPPLIES: Paint, wallpaper, flooring, hardware, tools, etc. that were used to create the changes
+
+EXAMPLES FOR MAKEOVERS:
+- If walls were painted → include "interior paint" and specific color
+- If new flooring was added → include "hardwood flooring" or "tile flooring"
+- If new furniture was added → include "sofa", "coffee table", "dining table", etc.
+- If lighting was changed → include "pendant light", "table lamp", "floor lamp"
+- If artwork was added → include "wall art", "canvas print", "mirror"
+- If plants were added → include "plant pot" and "indoor plant"
+- If textiles were added → include "throw pillow", "area rug", "curtains"
+
+CRITICAL: Be consistent between "name" and "description" fields:
+
+- "name": The main product/item name (e.g., "gray paint", "modern sofa", "pendant light")
+- "description": Amazon search terms for THAT SAME product (e.g., if name is "gray paint", description should be "interior wall paint gray")
+
+EXAMPLES OF CORRECT CONSISTENCY FOR MAKEOVERS:
+- Paint: name: "gray paint" → description: "interior wall paint gray"
+- Furniture: name: "modern sofa" → description: "modern sectional sofa" or "contemporary couch"
+- Lighting: name: "pendant light" → description: "kitchen pendant light" or "dining room pendant"
+- Flooring: name: "hardwood flooring" → description: "engineered hardwood flooring"
+- Artwork: name: "wall art" → description: "canvas wall art" or "modern wall decor"
+- Plants: name: "plant pot" → description: "ceramic plant pot" or "decorative planter"
+- Textiles: name: "throw pillow" → description: "decorative throw pillow" or "accent pillow"
+
+The "description" field should be SHORT Amazon search terms (under 10 words) for the SAME product as the name. Focus on: material + size + type + function. NO marketing language.
+
+Also be VERY descriptive in the "keywords" field - include specific design elements, patterns, materials, colors, and visual details you can see.
+
+Return valid JSON with this exact structure:
+{
+  "description": "${description}",
+  "items": [
+    {
+      "name": "product name",
+      "type": "item type",
+      "qty": 1,
+      "color": "color if applicable",
+      "keywords": ["specific", "design", "elements", "colors", "materials"],
+      "placement": {
+        "note": "where it's placed in the room",
+        "bboxNorm": [0.1, 0.2, 0.3, 0.4]
+      },
+      "description": "amazon search terms",
+      "estPriceUSD": 50
+    }
+  ],
+  "safetyNotes": "Any safety considerations for the makeover"
+}`
           : `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
 
 The user requested: "${description}"
@@ -416,6 +577,55 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
             cleaningSteps: stepsWithStatus,
             tokenUsage: totalTokens
           });
+        } else if (isMakeoverService) {
+          // For makeover service, return products (same as design service)
+          const products = analysisResult;
+          
+          for (const product of products.items || []) {
+            const searchTerms: string[] = [];
+
+            if (product.qty > 1) {
+              searchTerms.push(`${product.qty}`);
+            }
+
+            if (product.color) {
+              if (Array.isArray(product.color)) {
+                searchTerms.push(product.color[0]);
+              } else if (typeof product.color === 'string') {
+                const colors = product.color.split(',').map((c: string) => c.trim());
+                searchTerms.push(colors[0]);
+              }
+            }
+
+            let searchDescription = product.name;
+
+            if (product.placement?.note) {
+              const placement = (product.placement.note as string).toLowerCase();
+              if (placement.includes('above') || placement.includes('hanging')) {
+                searchDescription = `hanging ${searchDescription}`;
+              }
+            }
+
+            if (product.description) {
+              searchDescription = product.description;
+            }
+
+            searchTerms.push(searchDescription);
+
+            const associateTag = process.env.AMAZON_PARTNER_TAG;
+            const amazonHost = process.env.AMAZON_HOST || 'www.amazon.com';
+            const searchQuery = encodeURIComponent(searchTerms.join(' '));
+            const baseUrl = `https://${amazonHost}/s?k=${searchQuery}`;
+            const urlWithTag = associateTag ? `${baseUrl}&tag=${encodeURIComponent(associateTag)}` : baseUrl;
+
+            product.amazonLink = urlWithTag;
+          }
+
+          return res.json({ 
+            editedImageBase64: editedBase64, 
+            products: products.items || [],
+            tokenUsage: totalTokens
+          });
         } else {
           // For design service, return products
           const products = analysisResult;
@@ -486,11 +696,13 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
           return res.status(500).json({ error: 'Gemini API key not configured' });
         }
 
-        const { imageBase64, editInstructions, mimeType = 'image/jpeg' } = req.body as {
+        const { imageBase64, editInstructions, mimeType = 'image/jpeg', serviceType } = req.body as {
           imageBase64?: string;
           editInstructions?: string;
           mimeType?: string;
+          serviceType?: string;
         };
+
 
         if (!imageBase64) {
           return res.status(400).json({ error: 'imageBase64 is required' });
@@ -509,32 +721,98 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
         const imageModelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview';
         const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash';
 
-        ctx.logger.info('Using Gemini models for edit', {
-          imageModel: imageModelName,
-          textModel: textModelName
-        });
 
         const imageModel = genAI.getGenerativeModel({ model: imageModelName });
         const textModel = genAI.getGenerativeModel({ model: textModelName });
 
-        const editPrompt = `You are a professional interior designer. Please make the following changes to this space: "${editInstructions}".
+        const isDeclutterService = serviceType === 'declutter';
+        const isMakeoverService = serviceType === 'makeover';
+
+        if (isDeclutterService) {
+          return res.status(400).json({ error: 'Edit functionality is not available for declutter service' });
+        }
+        
+        const editPrompt = isMakeoverService
+          ? `You are a professional interior designer and home makeover specialist with expert spatial awareness. 
+🎯 PRIMARY OBJECTIVE: Follow the user's EXACT edit instructions: "${editInstructions}"
+CRITICAL: The user's specific edit instructions are the TOP PRIORITY. Every modification must align with their exact request.
+⚠️ IMPORTANT: The user has specifically requested: "${editInstructions}"
+- This is their EXACT request - do not deviate from it
+- Do not add anything they didn't ask for
+- Do not remove anything they didn't ask to remove
+- Focus ONLY on what they specifically requested
+MAKEOVER CONSTRAINTS - ROOM LAYOUT MUST REMAIN UNCHANGED:
+- Keep the same room structure and layout
+- Maintain existing architectural features
+- Keep all doorways, entrances, and pathways completely clear
+- Never place items that would obstruct movement or access
+- Respect the room's function and traffic flow
+WHAT YOU CAN CHANGE (following user's specific requests):
+- Furniture styles, colors, and arrangements
+- Decorations, artwork, and accessories
+- Lighting fixtures and placement
+- Textiles, rugs, and soft furnishings
+- Wall colors and treatments
+- Flooring materials and finishes
+Please implement the EXACT changes requested: "${editInstructions}" while keeping the room layout exactly the same and maintaining clear pathways and access to all areas.`
+          : `You are a professional interior designer with expert spatial awareness. 
+🎯 PRIMARY OBJECTIVE: Follow the user's EXACT edit instructions: "${editInstructions}"
+CRITICAL: The user's specific edit instructions are the TOP PRIORITY. Every modification must align with their exact request.
+⚠️ IMPORTANT: The user has specifically requested: "${editInstructions}"
+- This is their EXACT request - do not deviate from it
+- Do not add anything they didn't ask for
+- Do not remove anything they didn't ask to remove
+- Focus ONLY on what they specifically requested
+
+SPATIAL AWARENESS & CONTEXT UNDERSTANDING:
+- ANALYZE the space first: identify room type, doorways, windows, pathways, and functional areas
+- NEVER block doorways, entrances, exits, or walkways with new items
+- NEVER place items in front of doors, windows, or clear pathways
+- RESPECT the room's function: bedrooms need clear paths to bed, kitchens need clear work areas, etc.
+- UNDERSTAND traffic flow: keep main pathways completely clear
+- RECOGNIZE architectural features: mantles, built-ins, alcoves are good for decorations
+- IDENTIFY appropriate surfaces: walls, shelves, tables, floors (away from pathways)
 
 IMPORTANT CONSTRAINTS:
-- You can modify, add, remove, or change any elements as requested
+- You can modify, add, remove, or change any elements as specifically requested
 - Maintain realistic proportions and scale
 - Keep the overall room structure intact unless specifically asked to change it
 - Ensure all changes are visually coherent and well-integrated
 - Use appropriate lighting and shadows for realism
 - Avoid brand logos and text unless specifically requested
+- KEEP ALL DOORWAYS, ENTRANCES, AND PATHWAYS COMPLETELY CLEAR
+- NEVER place items that would obstruct movement or access
+
+PLACEMENT GUIDELINES FOR NEW ITEMS:
+- Wall decorations: on walls, not blocking pathways
+- Floor items: in corners, against walls, or in designated areas away from doorways
+- Table decorations: on existing surfaces, not blocking access
+- Plants: in corners, on shelves, or designated plant areas
+- Rugs: in seating areas, not blocking doorways or pathways
+- Artwork: on walls, above furniture, in appropriate focal points
 
 TECHNICAL REQUIREMENTS:
+- PRIORITIZE the user's specific edit instructions above all else
 - Make the requested changes while maintaining visual quality
 - Ensure all modifications complement the existing space
 - Keep scale realistic and proportional
 - Use appropriate materials and textures
 - Maintain good lighting and shadows
+- If user specifies colors: use those exact colors
+- If user mentions specific items: include/remove those items
+- If user wants changes to specific areas: focus on those areas
+- If user requests removal: remove exactly what they specified
+- If user requests additions: add exactly what they specified
+- ALWAYS maintain clear pathways and access to all areas
 
-Please implement the requested changes: "${editInstructions}"`;
+IMPLEMENTATION FOCUS:
+- Follow the user's edit instructions precisely: "${editInstructions}"
+- Make only the changes they specifically requested
+- Do not add extra modifications beyond their request
+- Ensure the result matches their exact vision
+- Maintain spatial awareness and functional access
+
+Please implement the EXACT changes requested: "${editInstructions}" while maintaining clear pathways and access to all areas.`;
 
         const gen1 = await imageModel.generateContent([
           { inlineData: { mimeType, data: cleanBase64 } } as any,
