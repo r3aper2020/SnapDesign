@@ -72,6 +72,13 @@ const DesignCard: React.FC<{
 
       {/* Design Info */}
       <View style={styles.designInfo}>
+        <View style={styles.designHeader}>
+          <Text style={[styles.designType, { color: theme.colors.primary.main }]}>
+            {design.serviceType === 'declutter' ? '🧹 Decluttering Plan' : 
+             design.serviceType === 'makeover' ? '🏠 Room Makeover' : 
+             '🎨 AI Design'}
+          </Text>
+        </View>
         <Text style={[styles.designDescription, { color: theme.colors.text.primary }]} numberOfLines={2}>
           {design.description}
         </Text>
@@ -79,7 +86,12 @@ const DesignCard: React.FC<{
           {formatDate(design.timestamp)}
         </Text>
         <Text style={[styles.designProducts, { color: theme.colors.text.secondary }]}>
-          {design.products.length} item{design.products.length !== 1 ? 's' : ''}
+          {design.serviceType === 'declutter' 
+            ? `${design.cleaningSteps?.length || 0} cleaning step${(design.cleaningSteps?.length || 0) !== 1 ? 's' : ''}`
+            : design.serviceType === 'makeover'
+            ? 'Complete makeover plan'
+            : `${design.products?.length || 0} product${(design.products?.length || 0) !== 1 ? 's' : ''}`
+          }
         </Text>
       </View>
 
@@ -110,6 +122,8 @@ interface SavedDesignsScreenProps {
   navigation: SavedDesignsScreenNavigationProp;
 }
 
+type FilterType = 'all' | 'design' | 'declutter' | 'makeover';
+
 export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
   const [savedDesigns, setSavedDesigns] = useState<SavedDesign[]>([]);
@@ -118,18 +132,28 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   
   const ITEMS_PER_PAGE = 6; // Smaller initial load for faster response
+
+  // Filter designs based on active filter
+  const filterDesigns = useCallback((designs: SavedDesign[], filter: FilterType): SavedDesign[] => {
+    if (filter === 'all') return designs;
+    return designs.filter(design => design.serviceType === filter);
+  }, []);
 
   const loadDesigns = useCallback(async (reset: boolean = false) => {
     try {
       const offset = reset ? 0 : savedDesigns.length;
       const result = await designStorage.getSavedDesignsPaginated(ITEMS_PER_PAGE, offset);
       
+      // Apply filter to the loaded designs
+      const filteredDesigns = filterDesigns(result.designs, activeFilter);
+      
       if (reset) {
-        setSavedDesigns(result.designs);
+        setSavedDesigns(filteredDesigns);
       } else {
-        setSavedDesigns(prev => [...prev, ...result.designs]);
+        setSavedDesigns(prev => [...prev, ...filteredDesigns]);
       }
       
       setHasMore(result.hasMore);
@@ -142,11 +166,16 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
       setRefreshing(false);
       setLoadingMore(false);
     }
-  }, [savedDesigns.length]);
+  }, [savedDesigns.length, activeFilter, filterDesigns]);
 
   useEffect(() => {
     loadDesigns(true);
   }, []);
+
+  // Reload designs when filter changes
+  useEffect(() => {
+    loadDesigns(true);
+  }, [activeFilter]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -184,13 +213,22 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
   };
 
   const handleViewDesign = (design: SavedDesign) => {
-    navigation.navigate('Result', {
-      generatedImage: design.generatedImage,
-      originalImage: design.originalImage,
-      products: design.products,
-      designId: design.id,
-      description: design.description,
-    });
+    if (design.serviceType === 'declutter') {
+      navigation.navigate('DeclutterResult', {
+        generatedImage: design.generatedImage,
+        originalImage: design.originalImage,
+        cleaningSteps: design.cleaningSteps || [],
+        description: design.description,
+      });
+    } else {
+      navigation.navigate('Result', {
+        generatedImage: design.generatedImage,
+        originalImage: design.originalImage,
+        products: design.products || [],
+        designId: design.id,
+        description: design.description,
+      });
+    }
   };
 
   const formatDate = (timestamp: number) => {
@@ -217,12 +255,57 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
             resizeMode="contain"
           />
           <Text style={[styles.title, { color: theme.colors.text.primary }]}>
-            Saved Designs
+            Saved Projects
           </Text>
           <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-            {loading ? 'Loading designs...' : total > 0 ? `${savedDesigns.length} of ${total} designs` : 'No designs saved'}
+            {loading ? 'Loading projects...' : total > 0 ? `${savedDesigns.length} of ${total} projects` : 'No projects saved'}
           </Text>
         </View>
+      </View>
+      
+      {/* Filter Tabs */}
+      <View style={styles.filterTabsContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterTabsContent}
+        >
+          {[
+            { key: 'all', label: 'All', icon: '📁' },
+            { key: 'design', label: 'Designs', icon: '🎨' },
+            { key: 'declutter', label: 'Plans', icon: '🧹' },
+            { key: 'makeover', label: 'Makeover', icon: '🏠' },
+          ].map((filter) => (
+            <TouchableOpacity
+              key={filter.key}
+              style={[
+                styles.filterTab,
+                { 
+                  backgroundColor: activeFilter === filter.key 
+                    ? theme.colors.primary.main 
+                    : 'rgba(255, 255, 255, 0.1)',
+                  borderColor: activeFilter === filter.key 
+                    ? theme.colors.primary.main 
+                    : 'rgba(255, 255, 255, 0.2)',
+                }
+              ]}
+              onPress={() => setActiveFilter(filter.key as FilterType)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.filterTabIcon}>{filter.icon}</Text>
+              <Text style={[
+                styles.filterTabText,
+                { 
+                  color: activeFilter === filter.key 
+                    ? '#FFFFFF' 
+                    : theme.colors.text.secondary 
+                }
+              ]}>
+                {filter.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
       
       <FlatList
@@ -250,14 +333,14 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
           !loading ? (
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyTitle, { color: theme.colors.text.primary }]}>
-                No Saved Designs
+                No Saved Projects
               </Text>
               <Text style={[styles.emptySubtitle, { color: theme.colors.text.secondary }]}>
-                Create your first design to see it saved here
+                Create your first design or decluttering plan to see it saved here
               </Text>
               <TouchableOpacity
                 style={[styles.createButton, { backgroundColor: theme.colors.accent.purple }]}
-                onPress={() => navigation.navigate('Design')}
+                onPress={() => navigation.navigate('MainTabs', { screen: 'Design' })}
               >
                 <Text style={[styles.createButtonText, { color: theme.colors.text.primary }]}>
                   Create Design
@@ -402,6 +485,15 @@ const styles = StyleSheet.create({
   designInfo: {
     padding: 12,
   },
+  designHeader: {
+    marginBottom: 6,
+  },
+  designType: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   designDescription: {
     fontSize: 14,
     fontWeight: '600',
@@ -518,5 +610,34 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 4,
     opacity: 0.3,
+  },
+  // Filter Tabs Styles
+  filterTabsContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 8,
+    backgroundColor: 'transparent',
+  },
+  filterTabsContent: {
+    paddingHorizontal: 4,
+  },
+  filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginRight: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    minWidth: 80,
+    justifyContent: 'center',
+  },
+  filterTabIcon: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  filterTabText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

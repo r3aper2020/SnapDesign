@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -26,9 +26,7 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
 import {
   ImagePreview,
-  InspirationModal,
   ErrorDisplay,
-  SparkleIcon,
 } from '../components';
 import { useDesignForm } from '../hooks/useDesignForm';
 
@@ -37,35 +35,26 @@ const { width, height } = Dimensions.get('window');
 // ============================================================================
 // TYPES & INTERFACES
 // ============================================================================
-type DesignScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Design'>;
+type DeclutterScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Declutter'>;
 
-interface DesignScreenProps {
-  navigation: DesignScreenNavigationProp;
+interface DeclutterScreenProps {
+  navigation: DeclutterScreenNavigationProp;
 }
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
-export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
-  console.log('DesignScreen loaded');
-  
-  useEffect(() => {
-    console.log('DesignScreen mounted');
-    return () => {
-      console.log('DesignScreen unmounted');
-    };
-  }, []);
-  
+export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) => {
   // ============================================================================
   // STATE & HOOKS
   // ============================================================================
   const { theme } = useTheme();
-  const [isInspirationModalVisible, setIsInspirationModalVisible] = useState(false);
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   
   // Local state for image (more reliable than hook state)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
   const [localImageRenderKey, setLocalImageRenderKey] = useState(0);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   // Custom hooks
   const formState = useDesignForm();
@@ -82,19 +71,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
   // ============================================================================
   // EVENT HANDLERS
   // ============================================================================
-  const openInspirationModal = useCallback(() => {
-    setIsInspirationModalVisible(true);
-  }, []);
-
-  const closeInspirationModal = useCallback(() => {
-    setIsInspirationModalVisible(false);
-  }, []);
-
-  const selectInspiration = useCallback((prompt: string) => {
-    formState.setDescription(prompt);
-    closeInspirationModal();
-  }, [formState, closeInspirationModal]);
-
   const openImageModal = useCallback(() => {
     setIsImageModalVisible(true);
   }, []);
@@ -173,19 +149,15 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
     }
   }, [formState]);
 
-  const handleGenerateDesign = useCallback(async () => {
-    // Validate that we have both image and description
+  const handleGenerateDeclutterPlan = useCallback(async () => {
+    // Validate that we have an image
     if (!formState.selectedImageUri && !localImageUri) {
       formState.setError('Please select an image first');
       return;
     }
-    
-    if (!formState.description.trim()) {
-      formState.setError('Please describe your design vision');
-      return;
-    }
 
     formState.setError(null);
+    setIsGenerating(true); // Set local state immediately
 
     // Start fade animation immediately
     Animated.parallel([
@@ -225,7 +197,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       useNativeDriver: false,
     }).start();
 
-    // Set generating state after a short delay to allow animation to start
+    // Set form state generating after a short delay to allow animation to start
     setTimeout(() => {
       formState.setIsGenerating(true);
     }, 100);
@@ -238,7 +210,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           throw new Error('Server not responding');
         }
       } catch (healthError) {
-        throw new Error('Cannot connect to the design server. Please check your internet connection and try again.');
+        throw new Error('Cannot connect to the decluttering server. Please check your internet connection and try again.');
       }
       
       // Ensure we have base64 data for the image
@@ -274,13 +246,13 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       }
       
       if (!imageBase64 || imageBase64.length < 1000) {
-        throw new Error('Please select a valid image before generating your design');
+        throw new Error('Please select a valid image before generating your decluttering plan');
       }
 
       const requestBody = {
         imageBase64: imageBase64,
-        description: formState.description.trim(),
-        mimeType: 'image/jpeg'
+        mimeType: 'image/jpeg',
+        serviceType: 'declutter' // Add service type to distinguish from design
       };
       
       const response = await fetch(endpoints.decorate(), {
@@ -304,7 +276,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
       const data = await response.json();
 
-      if (data.editedImageBase64 && data.products) {
+      if (data.editedImageBase64 && data.cleaningSteps) {
         // Fast-track progress bar to completion
         Animated.timing(progressAnim, {
           toValue: 1,
@@ -317,29 +289,29 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
         try {
           await designStorage.saveDesign({
-            description: formState.description.trim(),
+            description: "Clean and organize this cluttered space",
             originalImage: imageBase64,
             generatedImage: data.editedImageBase64,
-            serviceType: 'design',
-            products: data.products.items || data.products,
+            serviceType: 'declutter',
+            cleaningSteps: data.cleaningSteps,
             tokenUsage: data.tokenUsage
           });
         } catch (saveError) {
-          console.error('Error saving design:', saveError);
+          console.error('Error saving declutter plan:', saveError);
         }
 
-        navigation.navigate('Result', {
+        navigation.navigate('DeclutterResult', {
           generatedImage: data.editedImageBase64,
           originalImage: imageBase64,
-          products: data.products.items || data.products,
-          description: formState.description.trim()
+          cleaningSteps: data.cleaningSteps,
+          description: "Clean and organize this cluttered space"
         });
       } else {
-        throw new Error('The design server returned an unexpected response. Please try again.');
+        throw new Error('The decluttering server returned an unexpected response. Please try again.');
       }
 
     } catch (err: any) {
-      formState.setError(err.message || 'Failed to generate design');
+      formState.setError(err.message || 'Failed to generate decluttering plan');
       
       // Reset animation on error
       Animated.parallel([
@@ -355,6 +327,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         }),
       ]).start();
     } finally {
+      setIsGenerating(false); // Reset local state
       formState.setIsGenerating(false);
     }
   }, [formState, navigation, localImageUri, fadeAnim, loadingFadeAnim]);
@@ -378,10 +351,10 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           {/* Header */}
           <View style={styles.loadingHeader}>
             <Text style={[styles.loadingTitle, { color: theme.colors.text.primary }]}>
-              AI Design Generation
+              AI Decluttering Analysis
             </Text>
             <Text style={[styles.loadingSubtitle, { color: theme.colors.text.secondary }]}>
-              Transforming your space...
+              Analyzing your space for cleaning opportunities...
             </Text>
           </View>
 
@@ -423,7 +396,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
                 <Text style={styles.stepIconText}>●</Text>
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
-                Analyzing your space
+                Analyzing clutter and organization opportunities
               </Text>
             </View>
             
@@ -432,7 +405,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
                 <Text style={styles.stepIconText}>●</Text>
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
-                Searching for products for your space
+                Creating step-by-step cleaning plan
               </Text>
             </View>
             
@@ -441,7 +414,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
                 <Text style={styles.stepIconText}>●</Text>
               </View>
               <Text style={[styles.stepText, { color: theme.colors.text.secondary }]}>
-                Generating your design based on similar products found
+                Generating organized space visualization
               </Text>
             </View>
           </View>
@@ -465,13 +438,14 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
               </View>
             </View>
             <Text style={[styles.progressText, { color: theme.colors.text.secondary }]}>
-              Please wait while we create your design...
+              Please wait while we create your decluttering plan...
             </Text>
           </View>
         </View>
       </Animated.View>
     );
   };
+
   const renderPhotoCaptureSection = () => (
     <View style={styles.photoCaptureSection}>
       <View style={styles.sectionHeader}>
@@ -479,7 +453,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           Take a Photo
         </Text>
         <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
-          Capture your space to get started
+          Capture the space you want to clean and organize
         </Text>
       </View>
       
@@ -521,70 +495,33 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
     </View>
   );
 
-  const renderThumbnailAndPromptSection = () => (
-    <View style={styles.thumbnailPromptSection}>
-      {/* Header section with title and Get Ideas button */}
-      <View style={styles.promptHeader}>
-        <Text style={[styles.promptTitle, { color: theme.colors.text.primary }]}>
-          Describe Your Vision
+  const renderThumbnailSection = () => (
+    <View style={styles.thumbnailSection}>
+      {/* Header section with title */}
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+          Your Space
         </Text>
-        <TouchableOpacity
-          style={[styles.inspirationButton, { backgroundColor: theme.colors.accent.purple }]}
-          onPress={openInspirationModal}
-          accessibilityLabel="Get design inspiration ideas"
-          accessibilityRole="button"
-        >
-          <Text style={[styles.inspirationButtonText, { color: "#FFFFFF" }]}>
-            Get Ideas
-          </Text>
-        </TouchableOpacity>
+        <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
+          Tap the image to view full size
+        </Text>
       </View>
       
-      {/* Side-by-side container */}
-      <View style={styles.thumbnailPromptContainer}>
-        {/* Thumbnail on the left */}
-        <View style={styles.thumbnailContainer}>
-          <TouchableOpacity 
-            style={[styles.thumbnailWrapper, { borderColor: theme.colors.primary.main }]}
-            onPress={openImageModal}
-            activeOpacity={0.8}
-            accessibilityLabel="View full size image"
-            accessibilityRole="button"
-          >
-            <Image 
-              source={{ uri: (localImageUri || formState.selectedImageUri)! }} 
-              style={styles.thumbnailImage}
-              resizeMode="cover"
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Prompt area on the right */}
-        <View style={styles.promptContainer}>
-          <View style={[styles.inputContainer, { 
-            backgroundColor: theme.colors.background.secondary,
-            borderColor: theme.colors.border.light 
-          }]}>
-            <TextInput
-              style={[styles.designInput, { color: theme.colors.text.primary }]}
-              value={formState.description}
-              onChangeText={formState.setDescription}
-              placeholder="Describe your design vision... e.g., 'Transform this into a modern home office with plants and natural lighting'"
-              placeholderTextColor={theme.colors.text.secondary}
-              multiline
-              numberOfLines={5}
-              textAlignVertical="top"
-              maxLength={500}
-              accessibilityLabel="Design description input"
-              accessibilityHint="Enter a description of what you want to create in this space"
-            />
-          </View>
-          <View style={styles.characterCount}>
-            <Text style={[styles.characterCountText, { color: theme.colors.text.secondary }]}>
-              {formState.description.length}/500
-            </Text>
-          </View>
-        </View>
+      {/* Image container */}
+      <View style={styles.imageContainer}>
+        <TouchableOpacity 
+          style={[styles.thumbnailWrapper, { borderColor: theme.colors.primary.main }]}
+          onPress={openImageModal}
+          activeOpacity={0.8}
+          accessibilityLabel="View full size image"
+          accessibilityRole="button"
+        >
+          <Image 
+            source={{ uri: (localImageUri || formState.selectedImageUri)! }} 
+            style={styles.thumbnailImage}
+            resizeMode="cover"
+          />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -593,21 +530,21 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
-          Generate Your Design
+          Generate Your Plan
         </Text>
         <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
-          Review and create your AI transformation
+          Get a step-by-step cleaning and organization plan
         </Text>
       </View>
       
       {/* Generate button */}
       <TouchableOpacity
         style={styles.generateButton}
-        onPress={handleGenerateDesign}
-        disabled={formState.isGenerating}
-        accessibilityLabel="Generate AI design"
+        onPress={handleGenerateDeclutterPlan}
+        disabled={isGenerating}
+        accessibilityLabel="Generate decluttering plan"
         accessibilityRole="button"
-        accessibilityHint="Generate your design based on the selected image and description"
+        accessibilityHint="Generate your cleaning and organization plan based on the selected image and description"
       >
         <LinearGradient
           colors={theme.colors.gradient.primary}
@@ -615,18 +552,18 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           end={{ x: 1, y: 0 }}
           style={styles.gradientGenerateButton}
         >
-          {formState.isGenerating ? (
+          {isGenerating ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator color={theme.colors.text.primary} size="small" />
               <Text style={[styles.loadingText, { color: theme.colors.text.primary }]}>
-                Generating your design...
+                Generating your plan...
               </Text>
             </View>
           ) : (
             <View style={styles.generateButtonContent}>
-              <SparkleIcon size={20} color={theme.colors.text.primary} />
+              <Text style={styles.cleaningIcon}>🧹</Text>
               <Text style={[styles.generateButtonText, { color: theme.colors.text.primary }]}>
-                Generate Design
+                Generate Plan
               </Text>
             </View>
           )}
@@ -748,10 +685,10 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
           {/* Page Header */}
           <View style={styles.pageHeader}>
             <Text style={[styles.pageTitle, { color: theme.colors.text.primary }]}>
-              Create Your Design
+              Clean & Organize
             </Text>
             <Text style={[styles.pageSubtitle, { color: theme.colors.text.secondary }]}>
-              Transform any space with AI-powered design
+              Get a step-by-step plan to declutter your space
             </Text>
           </View>
 
@@ -763,10 +700,10 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             {/* Show processing state */}
             {formState.isProcessingImage && renderPhotoCaptureSection()}
             
-            {/* Show thumbnail + prompt section once photo is selected */}
+            {/* Show thumbnail section once photo is selected */}
             {(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && (
               <>
-                {renderThumbnailAndPromptSection()}
+                {renderThumbnailSection()}
                 {renderGenerateSection()}
               </>
             )}
@@ -782,22 +719,14 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         </Animated.View>
         
         {/* Loading Screen */}
-        {formState.isGenerating && renderLoadingScreen()}
+        {isGenerating && renderLoadingScreen()}
       </KeyboardAvoidingView>
-
-      {/* Inspiration Modal */}
-      <InspirationModal
-        visible={isInspirationModalVisible}
-        onClose={closeInspirationModal}
-        onSelectInspiration={selectInspiration}
-        theme={theme}
-      />
 
       {/* Image Modal */}
       {renderImageModal()}
 
       {/* Bottom Navigation - Hide during generation */}
-      {!formState.isGenerating && (
+      {!isGenerating && (
         <View style={styles.bottomNav}>
           <TouchableOpacity
             style={[styles.bottomNavButton, { backgroundColor: theme.colors.background.secondary }]}
@@ -814,7 +743,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 };
 
 // ============================================================================
-// STYLES
+// STYLES (Reusing most styles from DesignScreen with minor adjustments)
 // ============================================================================
 const styles = StyleSheet.create({
   container: {
@@ -903,33 +832,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Thumbnail and Prompt Section
-  thumbnailPromptSection: {
+  // Thumbnail Section
+  thumbnailSection: {
     marginBottom: 30,
   },
-  promptHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  imageContainer: {
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  promptTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    flex: 1,
-  },
-  thumbnailPromptContainer: {
-    flexDirection: width < 400 ? 'column' : 'row', // Stack on very small screens
-    gap: width < 350 ? 8 : width < 400 ? 12 : 16, // Smaller gaps on very small screens
-    alignItems: width < 400 ? 'center' : 'flex-start',
-  },
-  thumbnailContainer: {
-    alignItems: 'center',
-    width: width < 400 ? '100%' : Math.min(180, width * 0.4), // Full width on small screens
+    marginTop: 20,
   },
   thumbnailWrapper: {
-    width: width < 350 ? Math.min(160, width * 0.5) : width < 400 ? Math.min(200, width * 0.6) : Math.min(160, width * 0.4), // Progressive sizing
-    height: width < 350 ? 120 : width < 400 ? 140 : 250, // Progressive height scaling
+    width: Math.min(300, width * 0.8),
+    height: Math.min(200, width * 0.6),
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 2,
@@ -947,11 +860,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  promptContainer: {
-    flex: 1,
-    width: width < 400 ? '100%' : undefined, // Full width on small screens
-  },
-
 
   // Upload Buttons
   uploadButtons: {
@@ -977,72 +885,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Input Section
-  inputSection: {
-    justifyContent: 'flex-start',
-    marginTop: 10,
-  },
-  inputHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  inputLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    flex: 1,
-  },
-  inspirationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  inspirationButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  inputContainer: {
-    borderRadius: 16,
-    borderWidth: 2,
-    padding: 16,
-    height: width < 350 ? 120 : width < 400 ? 140 : 250, // Progressive height matching
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  designInput: {
-    fontSize: 16,
-    lineHeight: 22,
-    height: width < 350 ? 88 : width < 400 ? 108 : 218, // Progressive height minus padding
-    textAlignVertical: 'top',
-  },
-  characterCount: {
-    alignItems: 'flex-end',
-    marginTop: 8,
-  },
-  characterCountText: {
-    fontSize: 12,
-    fontWeight: '500',
-    opacity: 0.7,
-  },
-
 
   // Generate Button
   generateButton: {
@@ -1065,6 +907,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  cleaningIcon: {
+    fontSize: 20,
   },
   loadingContainer: {
     flexDirection: 'row',

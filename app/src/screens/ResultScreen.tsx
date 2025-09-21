@@ -679,7 +679,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               styles.basicModalCloseButton, 
               { 
                 backgroundColor: theme.colors.primary.main,
-                shadowColor: theme.colors.shadow
+                shadowColor: theme.colors.shadow.medium
               }
             ]}
             onPress={closeModal}
@@ -724,7 +724,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                   styles.basicModalNavButton, 
                   { 
                     backgroundColor: currentVariationIndex === 0 ? theme.colors.text.secondary : theme.colors.primary.main,
-                    shadowColor: theme.colors.shadow
+                    shadowColor: theme.colors.shadow.medium
                   }
                 ]}
                 onPress={() => {
@@ -742,7 +742,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                 { 
                   color: theme.colors.text.primary,
                   backgroundColor: theme.colors.background.secondary,
-                  borderColor: theme.colors.border
+                  borderColor: theme.colors.border.medium
                 }
               ]}>
                 {currentVariationIndex === 0 ? 'Original' : `Variation ${currentVariationIndex}`}
@@ -753,7 +753,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
                   styles.basicModalNavButton, 
                   { 
                     backgroundColor: currentVariationIndex >= variations.length ? theme.colors.text.secondary : theme.colors.primary.main,
-                    shadowColor: theme.colors.shadow
+                    shadowColor: theme.colors.shadow.medium
                   }
                 ]}
                 onPress={() => {
@@ -774,7 +774,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ navigation, route })
               styles.basicModalToggleButton,
               {
                 backgroundColor: theme.colors.primary.main,
-                shadowColor: theme.colors.shadow
+                shadowColor: theme.colors.shadow.medium
               }
             ]}
             onPress={() => {

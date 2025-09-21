@@ -4,6 +4,10 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { SearchScreen } from '../screens/SearchScreen';
 import { ResultScreen } from '../screens/ResultScreen';
+import { DesignScreen } from '../screens/DesignScreen';
+import { ServiceSelectionScreen } from '../screens/ServiceSelectionScreen';
+import { DeclutterScreen } from '../screens/DeclutterScreen';
+import { DeclutterResultScreen } from '../screens/DeclutterResultScreen';
 import { LoginScreen, SignupScreen } from '../screens';
 import { BottomTabNavigator } from './BottomTabNavigator';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,7 +16,21 @@ import { useTheme } from '../theme';
 export type RootStackParamList = {
   MainTabs: { screen?: string } | undefined;
   Home: undefined;
+  ServiceSelection: undefined;
   Design: undefined;
+  Declutter: undefined;
+  DeclutterResult: {
+    generatedImage: string;
+    originalImage: string;
+    cleaningSteps: Array<{
+      id: string;
+      title: string;
+      description: string;
+      completed: boolean;
+      estimatedTime?: string;
+    }>;
+    description: string;
+  };
   Search: { keywords: string[] };
   Result: { 
     generatedImage: string;
@@ -75,6 +93,26 @@ export const AppNavigator = () => {
         <Stack.Screen 
           name="MainTabs" 
           component={BottomTabNavigator} 
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="Design" 
+          component={DesignScreen} 
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="ServiceSelection" 
+          component={ServiceSelectionScreen} 
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="Declutter" 
+          component={DeclutterScreen} 
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="DeclutterResult" 
+          component={DeclutterResultScreen} 
           options={{ headerShown: false }}
         />
         <Stack.Screen 

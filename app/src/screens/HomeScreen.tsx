@@ -229,13 +229,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   const handleViewDesign = (design: SavedDesign) => {
-    navigation.navigate('Result', {
-      generatedImage: design.generatedImage,
-      originalImage: design.originalImage,
-      products: design.products,
-      designId: design.id,
-      description: design.description,
-    });
+    if (design.serviceType === 'declutter') {
+      navigation.navigate('DeclutterResult', {
+        generatedImage: design.generatedImage,
+        originalImage: design.originalImage,
+        cleaningSteps: design.cleaningSteps || [],
+        description: design.description,
+      });
+    } else {
+      navigation.navigate('Result', {
+        generatedImage: design.generatedImage,
+        originalImage: design.originalImage,
+        products: design.products || [],
+        designId: design.id,
+        description: design.description,
+      });
+    }
   };
 
   const handleViewAllDesigns = () => {

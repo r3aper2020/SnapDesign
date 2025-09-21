@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
 import { HomeScreen } from '../screens/HomeScreen';
-import { DesignScreen } from '../screens/DesignScreen';
+import { ServiceSelectionScreen } from '../screens/ServiceSelectionScreen';
 import { SavedDesignsScreen } from '../screens/SavedDesignsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { RootStackParamList } from './AppNavigator';
@@ -106,9 +106,9 @@ export const BottomTabNavigator: React.FC = () => {
       />
       <Tab.Screen 
         name="Design" 
-        component={DesignScreen}
+        component={ServiceSelectionScreen}
         options={{
-          tabBarLabel: 'Design',
+          tabBarLabel: 'Create',
         }}
       />
       <Tab.Screen 

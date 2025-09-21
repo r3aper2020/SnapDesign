@@ -22,7 +22,8 @@ export interface SavedDesign {
   description: string;
   originalImage: string;
   generatedImage: string;
-  products: Array<{
+  serviceType?: 'design' | 'declutter' | 'makeover'; // Add service type
+  products?: Array<{
     name: string;
     type: string;
     qty: number;
@@ -34,6 +35,13 @@ export interface SavedDesign {
       bboxNorm?: number[];
     };
     amazonLink?: string;
+  }>;
+  cleaningSteps?: Array<{
+    id: string;
+    title: string;
+    description: string;
+    completed: boolean;
+    estimatedTime?: string;
   }>;
   tokenUsage?: TokenUsage;
 }
@@ -96,7 +104,9 @@ class DesignStorage {
         description TEXT NOT NULL,
         originalImage TEXT NOT NULL,
         generatedImage TEXT NOT NULL,
-        products TEXT NOT NULL,
+        serviceType TEXT,
+        products TEXT,
+        cleaningSteps TEXT,
         tokenUsage TEXT
       );
       
@@ -144,15 +154,17 @@ class DesignStorage {
       };
 
       await this.db!.runAsync(
-        `INSERT INTO designs (id, timestamp, description, originalImage, generatedImage, products, tokenUsage) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO designs (id, timestamp, description, originalImage, generatedImage, serviceType, products, cleaningSteps, tokenUsage) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           savedDesign.id,
           savedDesign.timestamp,
           savedDesign.description,
           savedDesign.originalImage,
           savedDesign.generatedImage,
-          JSON.stringify(savedDesign.products),
+          savedDesign.serviceType || 'design',
+          JSON.stringify(savedDesign.products || []),
+          JSON.stringify(savedDesign.cleaningSteps || []),
           JSON.stringify(savedDesign.tokenUsage || null)
         ]
       );
@@ -160,7 +172,9 @@ class DesignStorage {
       console.log('💾 Design saved to database:', {
         id: savedDesign.id,
         description: savedDesign.description,
-        productsCount: savedDesign.products.length,
+        serviceType: savedDesign.serviceType,
+        productsCount: savedDesign.products?.length || 0,
+        cleaningStepsCount: savedDesign.cleaningSteps?.length || 0,
         originalImageSize: savedDesign.originalImage.length,
         generatedImageSize: savedDesign.generatedImage.length,
         tokenUsage: savedDesign.tokenUsage?.grandTotal || 0
@@ -223,22 +237,41 @@ class DesignStorage {
         `SELECT * FROM designs ORDER BY timestamp DESC`
       );
 
-      const designs = result.map((row: any) => ({
-        id: row.id,
-        timestamp: row.timestamp,
-        description: row.description,
-        originalImage: row.originalImage,
-        generatedImage: row.generatedImage,
-        products: JSON.parse(row.products),
-        tokenUsage: row.tokenUsage ? JSON.parse(row.tokenUsage) : undefined
-      }));
+      const designs = result.map((row: any) => {
+        const products = row.products ? JSON.parse(row.products) : [];
+        const cleaningSteps = row.cleaningSteps ? JSON.parse(row.cleaningSteps) : [];
+        
+        // Auto-detect service type for existing records
+        let serviceType = row.serviceType;
+        if (!serviceType) {
+          if (cleaningSteps.length > 0 && products.length === 0) {
+            serviceType = 'declutter';
+          } else {
+            serviceType = 'design';
+          }
+        }
+        
+        return {
+          id: row.id,
+          timestamp: row.timestamp,
+          description: row.description,
+          originalImage: row.originalImage,
+          generatedImage: row.generatedImage,
+          serviceType,
+          products,
+          cleaningSteps,
+          tokenUsage: row.tokenUsage ? JSON.parse(row.tokenUsage) : undefined
+        };
+      });
 
       console.log('📚 Loaded designs from database:', {
         count: designs.length,
         designs: designs.map(d => ({
           id: d.id,
           description: d.description,
-          productsCount: d.products.length,
+          serviceType: d.serviceType,
+          productsCount: d.products?.length || 0,
+          cleaningStepsCount: d.cleaningSteps?.length || 0,
           timestamp: new Date(d.timestamp).toLocaleString()
         }))
       });
@@ -265,15 +298,32 @@ class DesignStorage {
         [limit + 1, offset] // Get one extra to check if there are more
       );
 
-      const designs = result.slice(0, limit).map((row: any) => ({
-        id: row.id,
-        timestamp: row.timestamp,
-        description: row.description,
-        originalImage: row.originalImage,
-        generatedImage: row.generatedImage,
-        products: JSON.parse(row.products),
-        tokenUsage: row.tokenUsage ? JSON.parse(row.tokenUsage) : undefined
-      }));
+      const designs = result.slice(0, limit).map((row: any) => {
+        const products = row.products ? JSON.parse(row.products) : [];
+        const cleaningSteps = row.cleaningSteps ? JSON.parse(row.cleaningSteps) : [];
+        
+        // Auto-detect service type for existing records
+        let serviceType = row.serviceType;
+        if (!serviceType) {
+          if (cleaningSteps.length > 0 && products.length === 0) {
+            serviceType = 'declutter';
+          } else {
+            serviceType = 'design';
+          }
+        }
+        
+        return {
+          id: row.id,
+          timestamp: row.timestamp,
+          description: row.description,
+          originalImage: row.originalImage,
+          generatedImage: row.generatedImage,
+          serviceType,
+          products,
+          cleaningSteps,
+          tokenUsage: row.tokenUsage ? JSON.parse(row.tokenUsage) : undefined
+        };
+      });
 
       const hasMore = result.length > limit;
       
@@ -297,7 +347,9 @@ class DesignStorage {
         designs: designs.map(d => ({
           id: d.id,
           description: d.description,
-          productsCount: d.products.length,
+          serviceType: d.serviceType,
+          productsCount: d.products?.length || 0,
+          cleaningStepsCount: d.cleaningSteps?.length || 0,
           timestamp: new Date(d.timestamp).toLocaleString()
         }))
       });
