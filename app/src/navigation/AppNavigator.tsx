@@ -8,6 +8,8 @@ import { DesignScreen } from '../screens/DesignScreen';
 import { ServiceSelectionScreen } from '../screens/ServiceSelectionScreen';
 import { DeclutterScreen } from '../screens/DeclutterScreen';
 import { DeclutterResultScreen } from '../screens/DeclutterResultScreen';
+import { MakeoverScreen } from '../screens/MakeoverScreen';
+import { MakeoverResultScreen } from '../screens/MakeoverResultScreen';
 import { LoginScreen, SignupScreen } from '../screens';
 import { BottomTabNavigator } from './BottomTabNavigator';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,6 +32,25 @@ export type RootStackParamList = {
       estimatedTime?: string;
     }>;
     description: string;
+  };
+  Makeover: undefined;
+  MakeoverResult: {
+    originalImage: string;
+    editedImage: string;
+    description: string;
+    products: Array<{
+      name: string;
+      type: string;
+      qty: number;
+      color?: string;
+      estPriceUSD?: number;
+      keywords: string[];
+      placement?: {
+        note?: string;
+        bboxNorm?: number[];
+      };
+      amazonLink?: string;
+    }>;
   };
   Search: { keywords: string[] };
   Result: { 
@@ -113,6 +134,16 @@ export const AppNavigator = () => {
         <Stack.Screen 
           name="DeclutterResult" 
           component={DeclutterResultScreen} 
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="Makeover" 
+          component={MakeoverScreen} 
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="MakeoverResult" 
+          component={MakeoverResultScreen} 
           options={{ headerShown: false }}
         />
         <Stack.Screen 

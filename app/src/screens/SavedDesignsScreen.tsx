@@ -220,6 +220,13 @@ export const SavedDesignsScreen: React.FC<SavedDesignsScreenProps> = ({ navigati
         cleaningSteps: design.cleaningSteps || [],
         description: design.description,
       });
+    } else if (design.serviceType === 'makeover') {
+      navigation.navigate('MakeoverResult', {
+        originalImage: design.originalImage,
+        editedImage: design.generatedImage,
+        description: design.description,
+        products: design.products || [],
+      });
     } else {
       navigation.navigate('Result', {
         generatedImage: design.generatedImage,

@@ -351,10 +351,10 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
         console.log('Navigating to Declutter screen...');
         navigation.getParent()?.navigate('Declutter');
         break;
-      case 'makeover':
-        // TODO: Implement makeover flow
-        console.log('Makeover flow not yet implemented');
-        break;
+            case 'makeover':
+              console.log('Navigating to Makeover screen...');
+              navigation.getParent()?.navigate('Makeover');
+              break;
       default:
         console.log('Unknown service selected');
     }

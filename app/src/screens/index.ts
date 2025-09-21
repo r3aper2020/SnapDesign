@@ -3,6 +3,8 @@ export { ServiceSelectionScreen } from './ServiceSelectionScreen';
 export { DesignScreen } from './DesignScreen';
 export { DeclutterScreen } from './DeclutterScreen';
 export { DeclutterResultScreen } from './DeclutterResultScreen';
+export { MakeoverScreen } from './MakeoverScreen';
+export { MakeoverResultScreen } from './MakeoverResultScreen';
 export { SearchScreen } from './SearchScreen';
 export { ResultScreen } from './ResultScreen';
 export { LoginScreen } from './LoginScreen';
