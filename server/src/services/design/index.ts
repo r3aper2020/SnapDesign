@@ -63,10 +63,11 @@ const designService: ServiceModule = {
           return res.status(500).json({ error: 'Gemini API key not configured' });
         }
 
-        const { imageBase64, description = 'decorate this space', mimeType = 'image/jpeg' } = req.body as {
+        const { imageBase64, description, mimeType = 'image/jpeg', serviceType } = req.body as {
           imageBase64?: string;
           description?: string;
           mimeType?: string;
+          serviceType?: string;
         };
 
         if (!imageBase64) {
@@ -90,7 +91,28 @@ const designService: ServiceModule = {
         const imageModel = genAI.getGenerativeModel({ model: imageModelName });
         const textModel = genAI.getGenerativeModel({ model: textModelName });
 
-        const decoratePrompt = `You are a professional interior designer. Add decorations and enhancements to this space according to the user's request: "${description}".
+        const isDeclutterService = serviceType === 'declutter';
+        
+        const decoratePrompt = isDeclutterService 
+          ? `This is the AFTER photo of the same room.
+The space is perfectly staged for a real estate showing: spotless, uncluttered, and pristine.
+
+The floor is 100% clear — absolutely no clothes, toys, shoes, boxes, or items of any kind.
+
+All surfaces are empty and polished — no piles, no objects, no scattered items left on top of anything.
+
+All clothes, toys, papers, and personal belongings are put away inside storage (closets, cabinets, drawers, bins) — never stacked on surfaces.
+
+Beds are made hotel-perfect if present.
+
+Kitchens show only fixed appliances (no food, dishes, or clutter).
+
+Living areas show only staged furniture and original decor (no extra items).
+
+Furniture, layout, walls, doors, and windows remain unchanged.
+
+The result: a room that looks as if a professional home stager has completely decluttered and organized it — clean, empty, and ready to show.`
+          : `You are a professional interior designer. Add decorations and enhancements to this space according to the user's request: "${description || 'decorate this space'}".
 
 IMPORTANT CONSTRAINTS:
 - DO NOT remove, move, or change existing doors, windows, walls, or room layout
@@ -116,10 +138,39 @@ TECHNICAL REQUIREMENTS:
 
 Create a tasteful, well-styled space by adding the requested decorations while preserving the original room structure and layout.`;
 
-        const gen1 = await imageModel.generateContent([
-          { inlineData: { mimeType, data: cleanBase64 } } as any,
-          decoratePrompt
-        ]);
+        let gen1;
+        try {
+          gen1 = await imageModel.generateContent([
+            { inlineData: { mimeType, data: cleanBase64 } } as any,
+            decoratePrompt
+          ]);
+        } catch (error) {
+          ctx.logger.error('First generation attempt failed:', error);
+          // Try with a more aggressive prompt if the first one fails
+          const aggressivePrompt = `This is the AFTER photo of the same room.
+The space is perfectly staged for a real estate showing: spotless, uncluttered, and pristine.
+
+The floor is 100% clear — absolutely no clothes, toys, shoes, boxes, or items of any kind.
+
+All surfaces are empty and polished — no piles, no objects, no scattered items left on top of anything.
+
+All clothes, toys, papers, and personal belongings are put away inside storage (closets, cabinets, drawers, bins) — never stacked on surfaces.
+
+Beds are made hotel-perfect if present.
+
+Kitchens show only fixed appliances (no food, dishes, or clutter).
+
+Living areas show only staged furniture and original decor (no extra items).
+
+Furniture, layout, walls, doors, and windows remain unchanged.
+
+The result: a room that looks as if a professional home stager has completely decluttered and organized it — clean, empty, and ready to show.`;
+
+          gen1 = await imageModel.generateContent([
+            { inlineData: { mimeType, data: cleanBase64 } } as any,
+            aggressivePrompt
+          ]);
+        }
 
         const gen1Resp = await gen1.response as any;
         const parts: any[] = gen1Resp?.candidates?.[0]?.content?.parts || [];
@@ -171,7 +222,73 @@ Create a tasteful, well-styled space by adding the requested decorations while p
           required: ['description','items']
         } as const;
 
-        const analysisPrompt = `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
+        const analysisPrompt = isDeclutterService 
+          ? `Compare ORIGINAL vs EDITED images. Analyze the ORIGINAL image to identify what type of room this is and what specific items need to be organized. Create a contextual, step-by-step plan tailored to this specific space and its contents.
+
+ANALYZE THE ORIGINAL IMAGE FIRST:
+- What type of room is this? (bedroom, playroom, office, living room, kitchen, etc.)
+- What specific items do you see that need organizing? (toys, clothes, papers, books, electronics, dishes, etc.)
+- What furniture and storage options are available? (closets, drawers, shelves, toy boxes, etc.)
+- How messy is the space? (mild clutter vs. extreme mess)
+
+THE EDITED IMAGE SHOWS THE GOAL: A completely clean, organized space with everything properly stored.
+
+CREATE CONTEXTUAL STEPS BASED ON WHAT'S ACTUALLY IN THE ROOM:
+
+Return valid JSON with this exact structure:
+{
+  "description": "Transform this [ROOM TYPE] into a clean, organized, and functional space",
+  "cleaningSteps": [
+    {
+      "id": "step_1",
+      "title": "[Contextual title based on room type and items]",
+      "description": "[Specific instructions for the items actually visible in the image]",
+      "estimatedTime": "[Realistic time estimate]"
+    }
+  ]
+}
+
+EXAMPLES OF CONTEXTUAL STEPS:
+
+FOR A PLAYROOM:
+- "Pick up all scattered toys and put them in toy boxes or designated storage"
+- "Organize books and put them on shelves or in book bins"
+- "Clear the floor of all toys and create designated play zones"
+- "Put away art supplies and craft materials in proper containers"
+
+FOR AN OFFICE:
+- "Sort through all papers and file important documents"
+- "Organize office supplies in drawers or desk organizers"
+- "Clear the desk surface and put everything in proper storage"
+- "Organize cables and electronics neatly"
+
+FOR A BEDROOM:
+- "Put away all clothes - hang clean items, put dirty clothes in hamper"
+- "Clear nightstands and dresser tops of clutter"
+- "Organize personal items in drawers or storage containers"
+- "Make the bed and create a clean, organized sleeping space"
+
+FOR A LIVING ROOM:
+- "Pick up all items that don't belong and put them away"
+- "Organize books, magazines, and entertainment items"
+- "Clear coffee tables and surfaces of clutter"
+- "Organize remote controls and electronics"
+
+FOR A KITCHEN:
+- "Put away all dishes and clean the sink"
+- "Organize pantry items and put food in proper storage"
+- "Clear countertops and put appliances in designated spots"
+- "Organize cooking utensils and tools"
+
+REALISTIC TIME ESTIMATES:
+- Small room with mild clutter: 5-15 minutes per step
+- Medium room with moderate mess: 10-20 minutes per step  
+- Large room with extreme mess: 15-30 minutes per step
+- Total time should be reasonable (1-3 hours max for entire room)
+- Consider the actual amount of items visible in the image
+
+Create 4-6 practical, contextual steps that are specific to the room type and items actually visible in the ORIGINAL image. Make the steps meaningful and supportive for someone who doesn't know where to start.`
+          : `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
 
 The user requested: "${description}"
 
@@ -256,59 +373,15 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
           cleanJson = productsJson.split('```')[1];
         }
 
-        let products: any;
+        let analysisResult: any;
         try {
-          products = JSON.parse(cleanJson);
+          analysisResult = JSON.parse(cleanJson);
         } catch (parseError: any) {
           ctx.logger.error('JSON parse error:', parseError);
           return res.status(500).json({ 
             error: 'Failed to parse AI response. Please try again.',
             details: 'Invalid JSON format from AI'
           });
-        }
-
-        for (const product of products.items) {
-          const searchTerms: string[] = [];
-
-          if (product.qty > 1) {
-            searchTerms.push(`${product.qty}`);
-          }
-
-          if (product.color) {
-            if (Array.isArray(product.color)) {
-              searchTerms.push(product.color[0]);
-            } else if (typeof product.color === 'string') {
-              const colors = product.color.split(',').map((c: string) => c.trim());
-              searchTerms.push(colors[0]);
-            }
-          }
-
-          let searchDescription = product.name;
-
-          if (product.placement?.note) {
-            const placement = (product.placement.note as string).toLowerCase();
-            if (placement.includes('above') || placement.includes('hanging')) {
-              searchDescription = `hanging ${searchDescription}`;
-            }
-            if (placement.includes('large') || placement.includes('tall')) {
-              searchDescription = `large ${searchDescription}`;
-            }
-            if (placement.includes('human') || placement.includes('life size')) {
-              searchDescription = `human sized ${searchDescription}`;
-            }
-            if (placement.includes('small') || placement.includes('mini')) {
-              searchDescription = `small ${searchDescription}`;
-            }
-          }
-
-          searchTerms.push(searchDescription);
-
-          if (product.description) {
-            searchTerms.push(product.description);
-          }
-
-          const searchQuery = searchTerms.join(' ');
-          product.amazonLink = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}&tag=snapdesign-20`;
         }
 
         const totalTokens = {
@@ -327,11 +400,76 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
           outputTokensTotal: (imageUsage.candidatesTokenCount || 0) + (textUsage.candidatesTokenCount || 0)
         };
 
-        return res.json({ 
-          editedImageBase64: editedBase64, 
-          products,
-          tokenUsage: totalTokens
-        });
+        if (isDeclutterService) {
+          // For decluttering service, return cleaning steps
+          const cleaningSteps = analysisResult.cleaningSteps || [];
+          
+          // Add completed: false to each step
+          const stepsWithStatus = cleaningSteps.map((step: any, index: number) => ({
+            ...step,
+            id: step.id || `step_${index + 1}`,
+            completed: false
+          }));
+
+          return res.json({ 
+            editedImageBase64: editedBase64, 
+            cleaningSteps: stepsWithStatus,
+            tokenUsage: totalTokens
+          });
+        } else {
+          // For design service, return products
+          const products = analysisResult;
+          
+          for (const product of products.items || []) {
+            const searchTerms: string[] = [];
+
+            if (product.qty > 1) {
+              searchTerms.push(`${product.qty}`);
+            }
+
+            if (product.color) {
+              if (Array.isArray(product.color)) {
+                searchTerms.push(product.color[0]);
+              } else if (typeof product.color === 'string') {
+                const colors = product.color.split(',').map((c: string) => c.trim());
+                searchTerms.push(colors[0]);
+              }
+            }
+
+            let searchDescription = product.name;
+
+            if (product.placement?.note) {
+              const placement = (product.placement.note as string).toLowerCase();
+              if (placement.includes('above') || placement.includes('hanging')) {
+                searchDescription = `hanging ${searchDescription}`;
+              }
+              if (placement.includes('large') || placement.includes('tall')) {
+                searchDescription = `large ${searchDescription}`;
+              }
+              if (placement.includes('human') || placement.includes('life size')) {
+                searchDescription = `human sized ${searchDescription}`;
+              }
+              if (placement.includes('small') || placement.includes('mini')) {
+                searchDescription = `small ${searchDescription}`;
+              }
+            }
+
+            searchTerms.push(searchDescription);
+
+            if (product.description) {
+              searchTerms.push(product.description);
+            }
+
+            const searchQuery = searchTerms.join(' ');
+            product.amazonLink = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}&tag=snapdesign-20`;
+          }
+
+          return res.json({ 
+            editedImageBase64: editedBase64, 
+            products,
+            tokenUsage: totalTokens
+          });
+        }
       } catch (err: any) {
         ctx.logger.error('decorate error', err);
         return res.status(500).json({ error: err.message || 'decorate failed' });
