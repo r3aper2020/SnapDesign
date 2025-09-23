@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -31,6 +31,10 @@ const logger = {
   warn: console.warn.bind(console, '[warn]'),
   error: console.error.bind(console, '[error]')
 };
+
+// Load env variables from root directory first, then from current directory
+dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 async function bootstrap() {
   // Build manifest purely from env flags
