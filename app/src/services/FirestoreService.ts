@@ -1,10 +1,11 @@
-import { 
-  FirestoreUser, 
-  FIRESTORE_COLLECTIONS, 
+import {
+  FirestoreUser,
+  FIRESTORE_COLLECTIONS,
   createDefaultUser,
-  isFirestoreUser 
+  isFirestoreUser
 } from '../schemas/firestoreSchema';
 import { endpoints } from '../config/api';
+import { makeAuthenticatedRequest } from './ApiService';
 
 export interface FirestoreConfig {
   projectId: string;
@@ -24,13 +25,9 @@ class FirestoreService {
   async initialize(idToken: string): Promise<boolean> {
     try {
       this.idToken = idToken;
-      
-      // Get Firestore config from server
-      const response = await fetch(endpoints.firestore.config(), {
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-        },
-      });
+
+      // Get Firestore config from server using authenticated request
+      const response = await makeAuthenticatedRequest(endpoints.firestore.config());
 
       if (!response.ok) {
         console.error('Failed to get Firestore config:', response.status);
@@ -39,10 +36,10 @@ class FirestoreService {
 
       const data = await response.json();
       this.config = data.config;
-      
+
       // Enable the service after successful initialization
       this.enable();
-      
+
       return true;
     } catch (error) {
       console.error('Failed to initialize Firestore service:', error);
@@ -152,7 +149,7 @@ class FirestoreService {
 
       const data = await response.json();
       const user = this.convertFromFirestoreFields(data.fields);
-      
+
       if (!isFirestoreUser(user)) {
         console.error('Invalid user data from Firestore');
         return null;
@@ -278,10 +275,10 @@ class FirestoreService {
   // Helper methods for Firestore field conversion
   private convertToFirestoreFields(obj: any): Record<string, any> {
     const fields: Record<string, any> = {};
-    
+
     for (const [key, value] of Object.entries(obj)) {
       if (value === null || value === undefined) continue;
-      
+
       if (typeof value === 'string') {
         fields[key] = { stringValue: value };
       } else if (typeof value === 'number') {
@@ -301,13 +298,13 @@ class FirestoreService {
         fields[key] = { mapValue: { fields: this.convertToFirestoreFields(value) } };
       }
     }
-    
+
     return fields;
   }
 
   private convertFromFirestoreFields(fields: Record<string, any>): any {
     const obj: any = {};
-    
+
     for (const [key, field] of Object.entries(fields)) {
       if (field.stringValue !== undefined) {
         obj[key] = field.stringValue;
@@ -325,7 +322,7 @@ class FirestoreService {
         obj[key] = this.convertFromFirestoreFields(field.mapValue.fields);
       }
     }
-    
+
     return obj;
   }
 }

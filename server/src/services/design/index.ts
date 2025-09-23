@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import type { ServiceModule, ServiceContext } from '../../core/types';
 import { GoogleGenAI } from '@google/genai';
+import { verifyFirebaseToken } from '../../core/auth';
 
 const designService: ServiceModule = {
   name: 'design',
@@ -26,7 +27,7 @@ const designService: ServiceModule = {
 
     // Attach sub-routes
     // POST /design/search
-    app.post('/design/search', async (req, res) => {
+    app.post('/design/search', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
       const { keywords } = req.body as { keywords?: string[] };
       if (!Array.isArray(keywords) || keywords.length === 0) {
         return res.status(400).json({ error: 'keywords array is required' });
@@ -50,7 +51,7 @@ const designService: ServiceModule = {
     });
 
     // POST /design/decorate
-    app.post('/design/decorate', async (req, res) => {
+    app.post('/design/decorate', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
       try {
         const { SchemaType } = await import('@google/generative-ai');
 
@@ -717,7 +718,7 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
     });
 
     // POST /design/edit
-    app.post('/design/edit', async (req, res) => {
+    app.post('/design/edit', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
       try {
         const { GoogleGenerativeAI, SchemaType } = await import('@google/generative-ai');
         const { GoogleGenAI } = await import('@google/genai');
