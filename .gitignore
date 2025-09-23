@@ -142,3 +142,6 @@ api-server/logs/
 app/.expo/
 app/web-build/
 app/dist/
+
+# Certificates
+server/certs/

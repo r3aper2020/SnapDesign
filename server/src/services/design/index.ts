@@ -1,10 +1,6 @@
 import type { Express } from 'express';
 import type { ServiceModule, ServiceContext } from '../../core/types';
-import path from 'path';
-import dotenv from 'dotenv';
-
-// Load service-scoped .env (server/src/services/design/.env)
-dotenv.config({ path: path.join(__dirname, '.env') });
+import { GoogleGenAI } from '@google/genai';
 
 const designService: ServiceModule = {
   name: 'design',
@@ -16,9 +12,9 @@ const designService: ServiceModule = {
   async registerRoutes(app: Express, ctx: ServiceContext) {
     // Health
     app.get('/design/health', (_req, res) => {
-      res.json({ 
-        service: 'design', 
-        status: 'healthy', 
+      res.json({
+        service: 'design',
+        status: 'healthy',
         version: '1.0.0',
         endpoints: {
           search: ['POST /design/search'],
@@ -56,12 +52,7 @@ const designService: ServiceModule = {
     // POST /design/decorate
     app.post('/design/decorate', async (req, res) => {
       try {
-        const { GoogleGenerativeAI, SchemaType } = await import('@google/generative-ai');
-
-        const geminiApiKey = process.env.GEMINI_API_KEY;
-        if (!geminiApiKey) {
-          return res.status(500).json({ error: 'Gemini API key not configured' });
-        }
+        const { SchemaType } = await import('@google/generative-ai');
 
         const { imageBase64, description, mimeType = 'image/jpeg', serviceType } = req.body as {
           imageBase64?: string;
@@ -79,22 +70,29 @@ const designService: ServiceModule = {
           cleanBase64 = imageBase64.split(';base64,')[1];
         }
 
-        const genAI = new GoogleGenerativeAI(geminiApiKey);
+        const project = process.env.GEMINI_PROJECT_ID
+        const location = process.env.GEMINI_LOCATION
+        if (!project || !location) {
+          throw new Error('GEMINI_PROJECT_ID and GEMINI_LOCATION must be set');
+        }
+        ctx.logger.info("Loading with credentials: ", process.env.GOOGLE_APPLICATION_CREDENTIALS)
+        const ai = new GoogleGenAI({ vertexai: true, project, location, apiVersion: 'v1' });
+
         const imageModelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview';
         const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash';
 
         ctx.logger.info('Using Gemini models', {
           imageModel: imageModelName,
-          textModel: textModelName
+          textModel: textModelName,
+          project: project,
+          location: location
         });
 
-        const imageModel = genAI.getGenerativeModel({ model: imageModelName });
-        const textModel = genAI.getGenerativeModel({ model: textModelName });
 
         const isDeclutterService = serviceType === 'declutter';
         const isMakeoverService = serviceType === 'makeover';
-        
-        const decoratePrompt = isDeclutterService 
+
+        const decoratePrompt = isDeclutterService
           ? `This is the AFTER photo of the same room.
 The space is perfectly staged for a real estate showing: spotless, uncluttered, and pristine.
 
@@ -114,7 +112,7 @@ Furniture, layout, walls, doors, and windows remain unchanged.
 
 The result: a room that looks as if a professional home stager has completely decluttered and organized it — clean, empty, and ready to show.`
           : isMakeoverService
-          ? `You are a professional interior designer and home makeover specialist with expert spatial awareness. 
+            ? `You are a professional interior designer and home makeover specialist with expert spatial awareness. 
 
 🎯 PRIMARY OBJECTIVE: Follow the user's EXACT vision and requirements: "${description || 'complete room makeover'}"
 
@@ -177,7 +175,7 @@ STYLE EXECUTION (adapt based on user's specific requests):
 - If user wants a theme: fully embrace that theme
 
 Transform this space into a complete makeover that EXACTLY reflects the user's vision: "${description || 'complete room makeover'}" while keeping the room layout exactly the same and maintaining clear pathways and access to all areas.`
-          : `You are a professional interior designer with expert spatial awareness. 
+            : `You are a professional interior designer with expert spatial awareness. 
 
 🎯 PRIMARY OBJECTIVE: Follow the user's EXACT request: "${description || 'decorate this space'}"
 
@@ -233,10 +231,22 @@ Create a tasteful, well-styled space by adding the EXACT decorations and enhance
 
         let gen1;
         try {
-          gen1 = await imageModel.generateContent([
-            { inlineData: { mimeType, data: cleanBase64 } } as any,
-            decoratePrompt
-          ]);
+          gen1 = await ai.models.generateContent({
+            model: imageModelName,
+            config: {
+              responseModalities: ['TEXT', "IMAGE"],
+              candidateCount: 1,
+            },
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { inlineData: { mimeType, data: cleanBase64 } },
+                  { text: decoratePrompt }
+                ],
+              }
+            ]
+          });
         } catch (error) {
           ctx.logger.error('First generation attempt failed:', error);
           // Try with a more aggressive prompt if the first one fails
@@ -259,13 +269,25 @@ Furniture, layout, walls, doors, and windows remain unchanged.
 
 The result: a room that looks as if a professional home stager has completely decluttered and organized it — clean, empty, and ready to show.`;
 
-          gen1 = await imageModel.generateContent([
-            { inlineData: { mimeType, data: cleanBase64 } } as any,
-            aggressivePrompt
-          ]);
+          gen1 = await ai.models.generateContent({
+            model: imageModelName,
+            config: {
+              responseModalities: ['TEXT', "IMAGE"],
+              candidateCount: 1,
+            },
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { inlineData: { mimeType, data: cleanBase64 } },
+                  { text: aggressivePrompt }
+                ]
+              }
+            ]
+          });
         }
 
-        const gen1Resp = await gen1.response as any;
+        const gen1Resp: any = gen1;
         const parts: any[] = gen1Resp?.candidates?.[0]?.content?.parts || [];
         const imagePart = parts.find((p: any) => p.inlineData?.data);
         if (!imagePart) {
@@ -307,15 +329,15 @@ The result: a room that looks as if a professional home stager has completely de
                   description: { type: SchemaType.STRING, nullable: true },
                   estPriceUSD: { type: SchemaType.NUMBER, nullable: true }
                 },
-                required: ['name','type','qty','keywords','placement']
+                required: ['name', 'type', 'qty', 'keywords', 'placement']
               }
             },
             safetyNotes: { type: SchemaType.STRING }
           },
-          required: ['description','items']
+          required: ['description', 'items']
         } as const;
 
-        const analysisPrompt = isDeclutterService 
+        const analysisPrompt = isDeclutterService
           ? `Compare ORIGINAL vs EDITED images. Analyze the ORIGINAL image to identify what type of room this is and what specific items need to be organized. Create a contextual, step-by-step plan tailored to this specific space and its contents.
 
 ANALYZE THE ORIGINAL IMAGE FIRST:
@@ -382,7 +404,7 @@ REALISTIC TIME ESTIMATES:
 
 Create 4-6 practical, contextual steps that are specific to the room type and items actually visible in the ORIGINAL image. Make the steps meaningful and supportive for someone who doesn't know where to start.`
           : isMakeoverService
-          ? `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the complete makeover shown in EDITED.
+            ? `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the complete makeover shown in EDITED.
 
 The user requested: "${description}"
 
@@ -449,7 +471,7 @@ Return valid JSON with this exact structure:
   ],
   "safetyNotes": "Any safety considerations for the makeover"
 }`
-          : `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
+            : `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
 
 The user requested: "${description}"
 
@@ -509,21 +531,29 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
 
         let gen2;
         try {
-          gen2 = await textModel.generateContent([
-            { text: analysisPrompt },
-            { inlineData: { mimeType, data: cleanBase64 } },
-            { inlineData: { mimeType: 'image/png', data: editedBase64 } },
-          ]);
+          gen2 = await ai.models.generateContent({
+            model: textModelName,
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: analysisPrompt },
+                  { inlineData: { mimeType, data: cleanBase64 } },
+                  { inlineData: { mimeType: 'image/png', data: editedBase64 } }
+                ]
+              }
+            ]
+          });
         } catch (textError: any) {
           ctx.logger.error('Text analysis error:', textError);
-          return res.status(500).json({ 
+          return res.status(500).json({
             error: 'Failed to analyze images. Please try again with a different image or theme.',
-            details: textError.message 
+            details: textError.message
           });
         }
 
-        const gen2Resp: any = gen2.response;
-        const productsJson = await gen2Resp.text();
+        const gen2Resp: any = gen2;
+        const productsJson = gen2Resp.text as string;
 
         const textUsage = gen2Resp?.usageMetadata || {};
 
@@ -539,7 +569,7 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
           analysisResult = JSON.parse(cleanJson);
         } catch (parseError: any) {
           ctx.logger.error('JSON parse error:', parseError);
-          return res.status(500).json({ 
+          return res.status(500).json({
             error: 'Failed to parse AI response. Please try again.',
             details: 'Invalid JSON format from AI'
           });
@@ -564,7 +594,7 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
         if (isDeclutterService) {
           // For decluttering service, return cleaning steps
           const cleaningSteps = analysisResult.cleaningSteps || [];
-          
+
           // Add completed: false to each step
           const stepsWithStatus = cleaningSteps.map((step: any, index: number) => ({
             ...step,
@@ -572,15 +602,15 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
             completed: false
           }));
 
-          return res.json({ 
-            editedImageBase64: editedBase64, 
+          return res.json({
+            editedImageBase64: editedBase64,
             cleaningSteps: stepsWithStatus,
             tokenUsage: totalTokens
           });
         } else if (isMakeoverService) {
           // For makeover service, return products (same as design service)
           const products = analysisResult;
-          
+
           for (const product of products.items || []) {
             const searchTerms: string[] = [];
 
@@ -621,15 +651,15 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
             product.amazonLink = urlWithTag;
           }
 
-          return res.json({ 
-            editedImageBase64: editedBase64, 
+          return res.json({
+            editedImageBase64: editedBase64,
             products: products.items || [],
             tokenUsage: totalTokens
           });
         } else {
           // For design service, return products
           const products = analysisResult;
-          
+
           for (const product of products.items || []) {
             const searchTerms: string[] = [];
 
@@ -674,8 +704,8 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
             product.amazonLink = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}&tag=snapdesign-20`;
           }
 
-          return res.json({ 
-            editedImageBase64: editedBase64, 
+          return res.json({
+            editedImageBase64: editedBase64,
             products,
             tokenUsage: totalTokens
           });
@@ -690,11 +720,8 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
     app.post('/design/edit', async (req, res) => {
       try {
         const { GoogleGenerativeAI, SchemaType } = await import('@google/generative-ai');
+        const { GoogleGenAI } = await import('@google/genai');
 
-        const geminiApiKey = process.env.GEMINI_API_KEY;
-        if (!geminiApiKey) {
-          return res.status(500).json({ error: 'Gemini API key not configured' });
-        }
 
         const { imageBase64, editInstructions, mimeType = 'image/jpeg', serviceType } = req.body as {
           imageBase64?: string;
@@ -717,13 +744,16 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
           cleanBase64 = imageBase64.split(';base64,')[1];
         }
 
-        const genAI = new GoogleGenerativeAI(geminiApiKey);
+        const project = process.env.GEMINI_PROJECT_ID || process.env.GCP_PROJECT_ID;
+        const location = process.env.GEMINI_LOCATION || process.env.GCP_LOCATION;
+        if (!project || !location) {
+          throw new Error('GEMINI_PROJECT_ID/GCP_PROJECT_ID and GEMINI_LOCATION/GCP_LOCATION must be set');
+        }
+        const ai = new GoogleGenAI({ vertexai: true, project, location, apiVersion: 'v1' });
         const imageModelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview';
         const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash';
 
-
-        const imageModel = genAI.getGenerativeModel({ model: imageModelName });
-        const textModel = genAI.getGenerativeModel({ model: textModelName });
+        // Using @google/genai against Vertex AI with ADC (GOOGLE_APPLICATION_CREDENTIALS)
 
         const isDeclutterService = serviceType === 'declutter';
         const isMakeoverService = serviceType === 'makeover';
@@ -731,7 +761,7 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
         if (isDeclutterService) {
           return res.status(400).json({ error: 'Edit functionality is not available for declutter service' });
         }
-        
+
         const editPrompt = isMakeoverService
           ? `You are a professional interior designer and home makeover specialist with expert spatial awareness. 
 🎯 PRIMARY OBJECTIVE: Follow the user's EXACT edit instructions: "${editInstructions}"
@@ -814,12 +844,24 @@ IMPLEMENTATION FOCUS:
 
 Please implement the EXACT changes requested: "${editInstructions}" while maintaining clear pathways and access to all areas.`;
 
-        const gen1 = await imageModel.generateContent([
-          { inlineData: { mimeType, data: cleanBase64 } } as any,
-          editPrompt
-        ]);
+        const gen1 = await ai.models.generateContent({
+          model: imageModelName,
+          config: {
+            responseModalities: ['TEXT', "IMAGE"],
+            candidateCount: 1,
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { inlineData: { mimeType, data: cleanBase64 } },
+                { text: editPrompt }
+              ]
+            }
+          ]
+        });
 
-        const gen1Resp = await gen1.response as any;
+        const gen1Resp: any = gen1;
         const parts: any[] = gen1Resp?.candidates?.[0]?.content?.parts || [];
         const imagePart = parts.find((p: any) => p.inlineData?.data);
         if (!imagePart) {
@@ -861,12 +903,12 @@ Please implement the EXACT changes requested: "${editInstructions}" while mainta
                   description: { type: SchemaType.STRING, nullable: true },
                   estPriceUSD: { type: SchemaType.NUMBER, nullable: true }
                 },
-                required: ['name','type','qty','keywords','placement']
+                required: ['name', 'type', 'qty', 'keywords', 'placement']
               }
             },
             safetyNotes: { type: SchemaType.STRING }
           },
-          required: ['description','items']
+          required: ['description', 'items']
         } as const;
 
         const analysisPrompt = `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
@@ -929,21 +971,29 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
 
         let gen2;
         try {
-          gen2 = await textModel.generateContent([
-            { text: analysisPrompt },
-            { inlineData: { mimeType, data: cleanBase64 } },
-            { inlineData: { mimeType: 'image/png', data: editedBase64 } },
-          ]);
+          gen2 = await ai.models.generateContent({
+            model: textModelName,
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: analysisPrompt },
+                  { inlineData: { mimeType, data: cleanBase64 } },
+                  { inlineData: { mimeType: 'image/png', data: editedBase64 } }
+                ]
+              }
+            ]
+          });
         } catch (textError: any) {
           ctx.logger.error('Text analysis error:', textError);
-          return res.status(500).json({ 
+          return res.status(500).json({
             error: 'Failed to analyze images. Please try again with a different image or edit instructions.',
-            details: textError.message 
+            details: textError.message
           });
         }
 
-        const gen2Resp: any = gen2.response;
-        const productsJson = await gen2Resp.text();
+        const gen2Resp: any = gen2;
+        const productsJson = gen2Resp.text as string;
 
         const textUsage = gen2Resp?.usageMetadata || {};
 
@@ -959,7 +1009,7 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
           products = JSON.parse(cleanJson);
         } catch (parseError: any) {
           ctx.logger.error('JSON parse error:', parseError);
-          return res.status(500).json({ 
+          return res.status(500).json({
             error: 'Failed to parse AI response. Please try again.',
             details: 'Invalid JSON format from AI'
           });
@@ -1025,8 +1075,8 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
           outputTokensTotal: (imageUsage.candidatesTokenCount || 0) + (textUsage.candidatesTokenCount || 0)
         };
 
-        return res.json({ 
-          editedImageBase64: editedBase64, 
+        return res.json({
+          editedImageBase64: editedBase64,
           products,
           tokenUsage: totalTokens,
           editInstructions
@@ -1040,5 +1090,6 @@ Use normalized bbox coordinates (0..1) around each added item. Include ALL produ
 };
 
 export default designService;
+
 
 
