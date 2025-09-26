@@ -1,14 +1,15 @@
-import type { ExpoConfig } from 'expo';
+import { ExpoConfig } from 'expo/config';
 import * as dotenv from 'dotenv';
 
 dotenv.config({ path: '.env' });
 
 const config: ExpoConfig = {
   name: 'ReVibe',
+  plugins: ['expo-secure-store'],
   slug: 'ReVibe',
   version: '1.0.0',
   orientation: 'portrait',
-    icon: './assets/re-vibe.png',
+  icon: './assets/re-vibe.png',
   userInterfaceStyle: 'light',
   newArchEnabled: true,
   splash: {
