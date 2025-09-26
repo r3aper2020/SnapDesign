@@ -17,6 +17,9 @@ export const endpoints = {
   },
   // Firestore endpoints
   firestore: {
-    config: (): string => `${API_BASE_URL}/firestore/config`,
+    getUser: (uid: string): string => `${API_BASE_URL}/firestore/users/${uid}`,
+    createUser: (uid: string): string => `${API_BASE_URL}/firestore/users/${uid}`,
+    updateLastLogin: (uid: string): string => `${API_BASE_URL}/firestore/users/${uid}/last-login`,
+    updateStats: (uid: string): string => `${API_BASE_URL}/firestore/users/${uid}/stats`,
   },
 };

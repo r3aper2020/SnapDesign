@@ -19,6 +19,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useAuth } from '../contexts/AuthContext';
 import { designStorage, SavedDesign } from '../services/DesignStorage';
+import { TokenBanner } from '../components/TokenBanner';
 
 const { width, height } = Dimensions.get('window');
 
@@ -51,6 +52,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { isAuthenticated, user } = useAuth();
   const [recentDesigns, setRecentDesigns] = useState<SavedDesign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
+  const [tokenResetDate, setTokenResetDate] = useState<Date | null>(null);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -151,11 +154,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
+
       {/* Animated Background */}
       <View style={styles.backgroundContainer}>
-        <Image 
-          source={require('../../assets/background.png')} 
+        <Image
+          source={require('../../assets/background.png')}
           style={styles.backgroundImage}
           resizeMode="cover"
         />
@@ -164,14 +167,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           style={styles.backgroundGradient}
         />
       </View>
-      
-      <ScrollView 
+
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
         {/* Hero Section */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.heroSection,
             {
@@ -184,26 +187,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           ]}
         >
           {/* Logo */}
-          <Image 
-            source={require('../../assets/re-vibe.png')} 
+          <Image
+            source={require('../../assets/re-vibe.png')}
             style={styles.logo}
             resizeMode="cover"
           />
-          
+
           <Text style={[styles.heroTitle, { color: theme.colors.text.primary }]}>
             ReVibe Your Space
           </Text>
           <Text style={[styles.heroSubtitle, { color: theme.colors.text.secondary }]}>
             AI-Assisted Interior Design
           </Text>
-          
+
           <Text style={[styles.heroDescription, { color: theme.colors.text.secondary }]}>
             Give your rooms new life with AI-powered design assistance. Upload a photo and get personalized recommendations to transform your space.
           </Text>
 
           {/* Welcome Message */}
           {isAuthenticated && user && (
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.welcomeContainer,
                 {
@@ -215,6 +218,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <Text style={[styles.welcomeText, { color: theme.colors.text.primary }]}>
                 Welcome back, {user.name}! 👋
               </Text>
+              <TokenBanner
+                tokensRemaining={tokensRemaining}
+                tokenResetDate={tokenResetDate}
+                style={{ marginTop: 12, marginHorizontal: 0 }}
+              />
             </Animated.View>
           )}
 
@@ -242,7 +250,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
           {/* Auth Buttons for non-authenticated users */}
           {!isAuthenticated && (
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.authSection,
                 {
@@ -260,7 +268,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   Sign Up
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.authButton, styles.authButtonSecondary, { borderColor: theme.colors.button.secondary }]}
                 onPress={() => navigation.navigate('Login')}
@@ -275,7 +283,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </Animated.View>
 
         {/* Design Examples */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.examplesSection,
             {
@@ -290,7 +298,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
             Transform any space in seconds
           </Text>
-          
+
           <View style={styles.examplesGrid}>
             {[
               {
@@ -316,8 +324,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 onPress={handleStartDesign}
                 activeOpacity={0.8}
               >
-                <Image 
-                  source={example.image} 
+                <Image
+                  source={example.image}
                   style={styles.exampleImage}
                   resizeMode="cover"
                 />
@@ -335,7 +343,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </Animated.View>
 
         {/* How it Works */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.howItWorksSection,
             {
@@ -350,31 +358,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
             Simple, fast, and magical
           </Text>
-          
+
           <View style={styles.stepsContainer}>
             {[
-              { 
-                step: 1, 
-                icon: <CameraIcon size={32} color="#FFFFFF" />, 
-                title: 'Snap a Photo', 
+              {
+                step: 1,
+                icon: <CameraIcon size={32} color="#FFFFFF" />,
+                title: 'Snap a Photo',
                 description: 'Take a picture of your space'
               },
-              { 
-                step: 2, 
-                icon: <MagicWandIcon size={32} color="#FFFFFF" />, 
-                title: 'Describe Your Vision', 
+              {
+                step: 2,
+                icon: <MagicWandIcon size={32} color="#FFFFFF" />,
+                title: 'Describe Your Vision',
                 description: 'Tell us what you want to create'
               },
-              { 
-                step: 3, 
-                icon: <SparkleIcon size={32} color="#FFFFFF" />, 
-                title: 'AI Magic Happens', 
+              {
+                step: 3,
+                icon: <SparkleIcon size={32} color="#FFFFFF" />,
+                title: 'AI Magic Happens',
                 description: 'Watch your space transform'
               },
-              { 
-                step: 4, 
-                icon: <ShoppingCartIcon size={32} color="#FFFFFF" />, 
-                title: 'Shop & Create', 
+              {
+                step: 4,
+                icon: <ShoppingCartIcon size={32} color="#FFFFFF" />,
+                title: 'Shop & Create',
                 description: 'Get products to make it real'
               }
             ].map((item, index) => (
@@ -428,7 +436,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 0,
   },
-  
+
   // Hero Section
   heroSection: {
     paddingHorizontal: 20,
@@ -523,7 +531,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  
+
   // Auth Section
   authSection: {
     flexDirection: 'row',
@@ -550,7 +558,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+
   // How it Works Section
   howItWorksSection: {
     marginBottom: 50,
@@ -618,9 +626,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.7,
   },
-  
-  
-  
+
+
+
   // Design Examples
   examplesSection: {
     marginBottom: 50,

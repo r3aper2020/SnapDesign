@@ -6,3 +6,4 @@ export { ErrorDisplay } from './ErrorDisplay';
 export { ProductsList } from './ProductsList';
 export { CleaningStepsList } from './CleaningStepsList';
 export * from './icons/DesignIcons';
+export { TokenBanner } from './TokenBanner';

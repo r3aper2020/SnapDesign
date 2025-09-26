@@ -48,8 +48,9 @@ let firebaseConfig: FirebaseConfig | null = null;
 // Initialize Firebase Admin SDK
 function initializeFirebaseAdmin(ctx: ServiceContext) {
   if (!admin.apps.length) {
+    const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_CERT as string);
     admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
+      credential: admin.credential.cert(serviceAccount),
       projectId: process.env.FIREBASE_PROJECT_ID,
       databaseURL: process.env.FIREBASE_DATABASE_URL
     });
@@ -151,8 +152,10 @@ const firebaseService: ServiceModule = {
             initializeFirebaseAdmin(ctx);
           }
 
+          const db = admin.firestore();
+
           // Use Admin SDK to write to Firestore
-          await admin.firestore().collection('users').doc(authData.localId).set({
+          await db.collection('users').doc(authData.localId).set({
             email,
             displayName: displayName || email.split('@')[0],
             createdAt: new Date().toISOString(),
@@ -226,7 +229,9 @@ const firebaseService: ServiceModule = {
           initializeFirebaseAdmin(ctx);
         }
 
-        const userDoc = await admin.firestore().collection('users').doc(data.localId).get();
+        const db = admin.firestore();
+
+        const userDoc = await db.collection('users').doc(data.localId).get();
         const userData = userDoc.data();
         const tokenUsage = userData?.tokenUsage || {
           tokenRequestCount: 10,
@@ -335,7 +340,9 @@ const firebaseService: ServiceModule = {
           initializeFirebaseAdmin(ctx);
         }
 
-        const userDoc = await admin.firestore().collection('users').doc(data.localId).get();
+        const db = admin.firestore();
+
+        const userDoc = await db.collection('users').doc(data.localId).get();
 
 
         const userData = userDoc.data();
@@ -428,7 +435,9 @@ const firebaseService: ServiceModule = {
         if (!admin.apps.length) {
           initializeFirebaseAdmin(ctx);
         }
-        const userDoc = await admin.firestore().collection('users').doc(req.params.uid).get();
+
+        const db = admin.firestore();
+        const userDoc = await db.collection('users').doc(req.params.uid).get();
 
         // First check if user already exists
         const userData = userDoc.data();
@@ -437,7 +446,7 @@ const firebaseService: ServiceModule = {
         }
 
         // Create new user document
-        await admin.firestore().collection('users').doc(req.params.uid).set({
+        await db.collection('users').doc(req.params.uid).set({
           ...req.body,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -447,7 +456,7 @@ const firebaseService: ServiceModule = {
           }
         });
 
-        const newDoc = await admin.firestore().collection('users').doc(req.params.uid).get();
+        const newDoc = await db.collection('users').doc(req.params.uid).get();
         res.json(newDoc.data());
       } catch (err) {
         ctx.logger.error('Failed to create user', err);
@@ -467,7 +476,9 @@ const firebaseService: ServiceModule = {
           initializeFirebaseAdmin(ctx);
         }
 
-        const userDoc = await admin.firestore().collection('users').doc(req.params.uid).get();
+        const db = admin.firestore();
+
+        const userDoc = await db.collection('users').doc(req.params.uid).get();
         const userData = userDoc.data();
 
         if (!userData) {
@@ -493,8 +504,10 @@ const firebaseService: ServiceModule = {
           initializeFirebaseAdmin(ctx);
         }
 
+        const db = admin.firestore();
+
         const now = new Date().toISOString();
-        await admin.firestore().collection('users').doc(req.params.uid).update({
+        await db.collection('users').doc(req.params.uid).update({
           lastLoginAt: now,
           'stats.lastActiveAt': now,
           updatedAt: now
@@ -519,9 +532,11 @@ const firebaseService: ServiceModule = {
           initializeFirebaseAdmin(ctx);
         }
 
+        const db = admin.firestore();
+
         const now = new Date().toISOString();
         const stats = req.body;
-        await admin.firestore().collection('users').doc(req.params.uid).update({
+        await db.collection('users').doc(req.params.uid).update({
           stats,
           'stats.lastActiveAt': now,
           updatedAt: now
@@ -540,11 +555,6 @@ const firebaseService: ServiceModule = {
         // Token is already verified by middleware
         if (!req.user) {
           return res.status(401).json({ error: 'User not authenticated' });
-        }
-
-        // Get user's token usage from Firestore using service account
-        if (!admin.apps.length) {
-          initializeFirebaseAdmin(ctx);
         }
 
         res.json({
@@ -566,7 +576,6 @@ const firebaseService: ServiceModule = {
       }
     });
 
-    // No stub endpoints: guarded by requireFirebase to return 503 if not configured
   }
 };
 

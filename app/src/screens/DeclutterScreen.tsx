@@ -22,12 +22,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../theme/ThemeProvider';
 import { endpoints } from '../config/api';
+import { makeAuthenticatedRequest } from '../services/ApiService';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
 import {
   ImagePreview,
   ErrorDisplay,
+  TokenBanner,
 } from '../components';
 import { useDesignForm } from '../hooks/useDesignForm';
 
@@ -51,18 +53,21 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
   // ============================================================================
   const { theme } = useTheme();
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
-  
+  const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
+  const [tokenResetDate, setTokenResetDate] = useState<Date | null>(null);
+
   // Local state for image (more reliable than hook state)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
   const [localImageRenderKey, setLocalImageRenderKey] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
-  
+
   // Custom hooks
   const formState = useDesignForm();
-  
+
   // Get screen dimensions
   const { width, height } = Dimensions.get('window');
-  
+
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const loadingFadeAnim = useRef(new Animated.Value(0)).current;
@@ -82,7 +87,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
 
   const pickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
+
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Please grant permission to access your photo library');
       return;
@@ -98,15 +103,15 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      
+
       // Set local state immediately for display
       if (asset.uri) {
         setLocalImageUri(asset.uri);
         setLocalImageRenderKey(prev => prev + 1);
       }
-      
+
       formState.setIsProcessingImage(true);
-      
+
       try {
         await formState.handleImageData(asset);
       } catch (error) {
@@ -117,7 +122,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
 
   const takePhoto = useCallback(async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
+
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Please grant permission to access your camera');
       return;
@@ -133,15 +138,15 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      
+
       // Set local state immediately for display
       if (asset.uri) {
         setLocalImageUri(asset.uri);
         setLocalImageRenderKey(prev => prev + 1);
       }
-      
+
       formState.setIsProcessingImage(true);
-      
+
       try {
         await formState.handleImageData(asset);
       } catch (error) {
@@ -213,10 +218,10 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
       } catch (healthError) {
         throw new Error('Cannot connect to the decluttering server. Please check your internet connection and try again.');
       }
-      
+
       // Ensure we have base64 data for the image
       let imageBase64 = formState.selectedImage;
-      
+
       if (!imageBase64 && (formState.selectedImageUri || localImageUri)) {
         // Convert URI to base64 if we don't have it yet
         try {
@@ -224,7 +229,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
           const response = await fetch(imageUri);
           const blob = await response.blob();
           const reader = new FileReader();
-          
+
           imageBase64 = await new Promise<string>((resolve, reject) => {
             reader.onload = () => {
               try {
@@ -238,14 +243,14 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
             reader.onerror = () => reject(new Error('FileReader error'));
             reader.readAsDataURL(blob);
           });
-          
+
           // Update the form state with the base64 data
           formState.setSelectedImage(imageBase64);
         } catch (error) {
           throw new Error('Failed to process the selected image. Please try again.');
         }
       }
-      
+
       if (!imageBase64 || imageBase64.length < 1000) {
         throw new Error('Please select a valid image before generating your decluttering plan');
       }
@@ -255,20 +260,36 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
         mimeType: 'image/jpeg',
         serviceType: 'declutter' // Add service type to distinguish from design
       };
-      
-      const response = await fetch(endpoints.decorate(), {
+
+      const response = await makeAuthenticatedRequest(endpoints.decorate(), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(requestBody),
       });
+
+      // Get token information from headers
+      const tokensRemaining = response.headers.get('X-Tokens-Remaining');
+      const tokenResetDate = response.headers.get('X-Tokens-Reset-Date');
+
+      // Update token info in state
+      if (tokensRemaining) {
+        setTokensRemaining(parseInt(tokensRemaining));
+      }
+      if (tokenResetDate) {
+        setTokenResetDate(new Date(tokenResetDate));
+      }
 
       if (!response.ok) {
         let errorMessage = `HTTP error! status: ${response.status}`;
         try {
           const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
+          if (response.status === 429 && errorData.nextUpdate) {
+            // Token limit reached
+            setTokensRemaining(0);
+            setTokenResetDate(new Date(errorData.nextUpdate));
+            errorMessage = 'Token limit reached. Please wait for next reset.';
+          } else {
+            errorMessage = errorData.error || errorMessage;
+          }
         } catch (e) {
           // Could not parse error response
         }
@@ -314,7 +335,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
 
     } catch (err: any) {
       formState.setError(err.message || 'Failed to generate decluttering plan');
-      
+
       // Reset animation on error
       Animated.parallel([
         Animated.timing(fadeAnim, {
@@ -339,9 +360,9 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
   // ============================================================================
   const renderLoadingScreen = () => {
     const currentImageUri = localImageUri || formState.selectedImageUri;
-    
+
     return (
-      <Animated.View 
+      <Animated.View
         style={[
           styles.loadingScreen,
           {
@@ -363,7 +384,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
           {/* Image Preview */}
           {currentImageUri && (
             <View style={styles.imagePreviewContainer}>
-              <Animated.View 
+              <Animated.View
                 style={[
                   styles.imagePreview,
                   {
@@ -377,7 +398,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Image 
+                  <Image
                     source={{ uri: currentImageUri }}
                     style={styles.previewImage}
                     resizeMode="cover"
@@ -401,7 +422,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
                 Analyzing clutter and organization opportunities
               </Text>
             </View>
-            
+
             <View style={styles.processingStep}>
               <View style={[styles.stepIcon, { backgroundColor: theme.colors.button.primary }]}>
                 <MaterialIcons name="radio-button-checked" size={16} color="#FFFFFF" />
@@ -410,7 +431,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
                 Creating step-by-step cleaning plan
               </Text>
             </View>
-            
+
             <View style={styles.processingStep}>
               <View style={[styles.stepIcon, { backgroundColor: theme.colors.button.primary }]}>
                 <MaterialIcons name="radio-button-checked" size={16} color="#FFFFFF" />
@@ -425,17 +446,17 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
           <View style={styles.progressSection}>
             <View style={styles.progressBarContainer}>
               <View style={[styles.progressBar, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-                <Animated.View 
+                <Animated.View
                   style={[
                     styles.progressFill,
-                    { 
+                    {
                       backgroundColor: theme.colors.primary.main,
                       width: progressAnim.interpolate({
                         inputRange: [0, 1],
                         outputRange: ['0%', '100%'],
                       })
                     }
-                  ]} 
+                  ]}
                 />
               </View>
             </View>
@@ -458,11 +479,11 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
           Capture the space you want to clean and organize
         </Text>
       </View>
-      
+
       {/* Upload buttons when no image selected */}
       {!(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && (
         <View style={styles.uploadButtons}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.uploadButton, { backgroundColor: theme.colors.button.primary }]}
             onPress={pickImage}
             accessibilityLabel="Choose photo from gallery"
@@ -472,7 +493,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
               Choose Photo
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.uploadButton, styles.uploadButtonSecondary, { borderColor: theme.colors.button.secondary }]}
             onPress={takePhoto}
             accessibilityLabel="Take a new photo"
@@ -484,7 +505,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
           </TouchableOpacity>
         </View>
       )}
-      
+
       {/* Processing state */}
       {formState.isProcessingImage && (
         <View style={styles.processingContainer}>
@@ -508,18 +529,18 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
           Tap the image to view full size
         </Text>
       </View>
-      
+
       {/* Image container */}
       <View style={styles.imageContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.thumbnailWrapper, { borderColor: theme.colors.button.primary }]}
           onPress={openImageModal}
           activeOpacity={0.8}
           accessibilityLabel="View full size image"
           accessibilityRole="button"
         >
-          <Image 
-            source={{ uri: (localImageUri || formState.selectedImageUri)! }} 
+          <Image
+            source={{ uri: (localImageUri || formState.selectedImageUri)! }}
             style={styles.thumbnailImage}
             resizeMode="cover"
           />
@@ -538,7 +559,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
           Get a step-by-step cleaning and organization plan
         </Text>
       </View>
-      
+
       {/* Generate button */}
       <TouchableOpacity
         style={styles.generateButton}
@@ -582,41 +603,41 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
       onRequestClose={closeImageModal}
     >
       <View style={styles.imageModalOverlay}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.imageModalBackground}
           activeOpacity={1}
           onPress={closeImageModal}
         >
           <View style={styles.imageModalContent}>
             {/* Close button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.imageModalCloseButton, { backgroundColor: theme.colors.background.secondary }]}
               onPress={closeImageModal}
               accessibilityLabel="Close image modal"
               accessibilityRole="button"
             >
-              <MaterialIcons 
-                name="close" 
-                size={20} 
+              <MaterialIcons
+                name="close"
+                size={20}
                 color={theme.colors.text.primary}
               />
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.imageModalImageContainer}
               activeOpacity={1}
-              onPress={() => {}} // Prevent closing when tapping image
+              onPress={() => { }} // Prevent closing when tapping image
             >
-              <Image 
-                source={{ uri: (localImageUri || formState.selectedImageUri)! }} 
+              <Image
+                source={{ uri: (localImageUri || formState.selectedImageUri)! }}
                 style={styles.imageModalImage}
                 resizeMode="contain"
               />
             </TouchableOpacity>
-            
+
             {/* Action buttons */}
             <View style={styles.imageModalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.imageModalButton, { backgroundColor: theme.colors.background.secondary }]}
                 onPress={() => {
                   closeImageModal();
@@ -629,8 +650,8 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
                   Change Photo
                 </Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.imageModalButton, styles.imageModalButtonSecondary, { borderColor: theme.colors.primary.main }]}
                 onPress={() => {
                   closeImageModal();
@@ -656,28 +677,28 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.background.primary} />
-      
+
       {/* Background Image */}
-      <Image 
-        source={require('../../assets/background.png')} 
+      <Image
+        source={require('../../assets/background.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
       />
-      
-      
-      <KeyboardAvoidingView 
+
+
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         enabled={true}
       >
-        <Animated.View 
+        <Animated.View
           style={[
             { flex: 1 },
             { opacity: fadeAnim }
           ]}
         >
-          <ScrollView 
+          <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -686,42 +707,48 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
             alwaysBounceVertical={false}
             overScrollMode="auto"
           >
-          {/* Page Header */}
-          <View style={styles.pageHeader}>
-            <Text style={[styles.pageTitle, { color: theme.colors.text.primary }]}>
-              Clean & Organize
-            </Text>
-            <Text style={[styles.pageSubtitle, { color: theme.colors.text.secondary }]}>
-              Get a step-by-step plan to declutter your space
-            </Text>
-          </View>
+            {/* Token Banner */}
+            <TokenBanner
+              tokensRemaining={tokensRemaining}
+              tokenResetDate={tokenResetDate}
+            />
 
-          {/* Main Content Sections */}
-          <View style={styles.contentContainer}>
-            {/* Show photo capture section first */}
-            {!(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && renderPhotoCaptureSection()}
-            
-            {/* Show processing state */}
-            {formState.isProcessingImage && renderPhotoCaptureSection()}
-            
-            {/* Show thumbnail section once photo is selected */}
-            {(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && (
-              <>
-                {renderThumbnailSection()}
-                {renderGenerateSection()}
-              </>
-            )}
-          </View>
+            {/* Page Header */}
+            <View style={styles.pageHeader}>
+              <Text style={[styles.pageTitle, { color: theme.colors.text.primary }]}>
+                Clean & Organize
+              </Text>
+              <Text style={[styles.pageSubtitle, { color: theme.colors.text.secondary }]}>
+                Get a step-by-step plan to declutter your space
+              </Text>
+            </View>
 
-          {/* Error Display */}
-          <ErrorDisplay
-            error={formState.error}
-            onDismiss={() => formState.setError(null)}
-            theme={theme}
-          />
+            {/* Main Content Sections */}
+            <View style={styles.contentContainer}>
+              {/* Show photo capture section first */}
+              {!(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && renderPhotoCaptureSection()}
+
+              {/* Show processing state */}
+              {formState.isProcessingImage && renderPhotoCaptureSection()}
+
+              {/* Show thumbnail section once photo is selected */}
+              {(localImageUri || formState.selectedImageUri) && !formState.isProcessingImage && (
+                <>
+                  {renderThumbnailSection()}
+                  {renderGenerateSection()}
+                </>
+              )}
+            </View>
+
+            {/* Error Display */}
+            <ErrorDisplay
+              error={formState.error}
+              onDismiss={() => formState.setError(null)}
+              theme={theme}
+            />
           </ScrollView>
         </Animated.View>
-        
+
         {/* Loading Screen */}
         {isGenerating && renderLoadingScreen()}
       </KeyboardAvoidingView>
@@ -767,7 +794,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 40,
   },
-  
+
   // Page Header
   pageHeader: {
     paddingTop: 60,
@@ -789,13 +816,13 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     maxWidth: width - 80,
   },
-  
+
   // Content Container
   contentContainer: {
     flex: 1,
     paddingHorizontal: 16,
   },
-  
+
   // Sections
   section: {
     marginBottom: 40,
@@ -1014,7 +1041,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-  
+
   // Loading Screen Styles
   loadingScreen: {
     position: 'absolute',

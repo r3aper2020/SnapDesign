@@ -31,6 +31,7 @@ import {
   InspirationModal,
   ErrorDisplay,
   SparkleIcon,
+  TokenBanner,
 } from '../components';
 import { useDesignForm } from '../hooks/useDesignForm';
 
@@ -64,6 +65,8 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
   const [isInspirationModalVisible, setIsInspirationModalVisible] = useState(false);
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+  const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
+  const [tokenResetDate, setTokenResetDate] = useState<Date | null>(null);
 
   // Local state for image (more reliable than hook state)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
@@ -296,11 +299,30 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         body: JSON.stringify(requestBody),
       });
 
+      // Get token information from headers
+      const tokensRemaining = response.headers.get('X-Tokens-Remaining');
+      const tokenResetDate = response.headers.get('X-Tokens-Reset-Date');
+
+      // Update token info in state
+      if (tokensRemaining) {
+        setTokensRemaining(parseInt(tokensRemaining));
+      }
+      if (tokenResetDate) {
+        setTokenResetDate(new Date(tokenResetDate));
+      }
+
       if (!response.ok) {
         let errorMessage = `HTTP error! status: ${response.status}`;
         try {
           const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
+          if (response.status === 429 && errorData.nextUpdate) {
+            // Token limit reached
+            setTokensRemaining(0);
+            setTokenResetDate(new Date(errorData.nextUpdate));
+            errorMessage = 'Token limit reached. Please wait for next reset.';
+          } else {
+            errorMessage = errorData.error || errorMessage;
+          }
         } catch (e) {
           // Could not parse error response
         }
@@ -753,6 +775,12 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             alwaysBounceVertical={false}
             overScrollMode="auto"
           >
+            {/* Token Banner */}
+            <TokenBanner
+              tokensRemaining={tokensRemaining}
+              tokenResetDate={tokenResetDate}
+            />
+
             {/* Page Header */}
             <View style={styles.pageHeader}>
               <Text style={[styles.pageTitle, { color: theme.colors.text.primary }]}>
