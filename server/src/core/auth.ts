@@ -13,6 +13,7 @@ export interface FirebaseUser {
     email: string;
     displayName?: string;
     emailVerified: boolean;
+    idToken: string; // Add idToken to the type
 }
 
 // Extend Express Request type to include user
@@ -131,7 +132,9 @@ export async function verifyFirebaseToken(
             uid: user.localId,
             email: user.email,
             displayName: user.displayName,
-            emailVerified: user.emailVerified === 'true'
+            emailVerified: user.emailVerified === 'true',
+            idToken: token
+
         };
 
         // Store refresh token if provided

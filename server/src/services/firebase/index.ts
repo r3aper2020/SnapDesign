@@ -3,6 +3,7 @@ import type { ServiceModule, ServiceContext } from '../../core/types';
 import path from 'path';
 import dotenv from 'dotenv';
 import { verifyFirebaseToken } from '../../core/auth';
+import * as admin from 'firebase-admin';
 
 // Load service-scoped .env (server/src/services/firebase/.env)
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -43,6 +44,19 @@ function getFirebaseConfig(): FirebaseConfig | null {
 
 let firebaseConfig: FirebaseConfig | null = null;
 
+
+// Initialize Firebase Admin SDK
+function initializeFirebaseAdmin(ctx: ServiceContext) {
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      databaseURL: process.env.FIREBASE_DATABASE_URL
+    });
+    ctx.logger.info('Firebase Admin SDK initialized');
+  }
+}
+
 function requireFirebase(req: Request, res: Response, next: NextFunction) {
   if (!firebaseConfig) {
     return res.status(503).json({ error: 'Firebase service not configured' });
@@ -80,6 +94,26 @@ const firebaseService: ServiceModule = {
         // Additional security: rate limiting could be added here
         // Additional security: email domain validation could be added here
 
+        // Create user in Firebase Auth
+        // First check if email exists to give a clearer error
+        const checkResponse = await fetch(
+          `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${firebaseConfig!.webApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              identifier: email,
+              continueUri: 'http://localhost'
+            })
+          }
+        );
+
+        const checkData = await checkResponse.json();
+        if (checkData.registered) {
+          ctx.logger.warn('Attempted signup with existing email', { email });
+          return res.status(400).json({ error: 'Email already exists. Please login instead.' });
+        }
+
         const response = await fetch(
           `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${firebaseConfig!.webApiKey}`,
           {
@@ -94,24 +128,58 @@ const firebaseService: ServiceModule = {
           }
         );
 
-        const data = await response.json();
+        const authData = await response.json();
 
         if (!response.ok) {
-          // Log the error for debugging but don't expose internal details
           ctx.logger.error('Firebase signup failed', {
             status: response.status,
-            error: data.error?.message,
-            email: email // Don't log password
+            error: authData.error?.message,
+            email: email
           });
-          return res.status(400).json({ error: data.error?.message || 'Signup failed' });
+          return res.status(400).json({ error: authData.error?.message || 'Signup failed' });
+        }
+
+        // Initialize user document with token usage in Firestore
+        let tokenUsage = {
+          tokenRequestCount: 10,
+          nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+        };
+
+        try {
+          // Initialize Firebase Admin if not already initialized
+          if (!admin.apps.length) {
+            initializeFirebaseAdmin(ctx);
+          }
+
+          // Use Admin SDK to write to Firestore
+          await admin.firestore().collection('users').doc(authData.localId).set({
+            email,
+            displayName: displayName || email.split('@')[0],
+            createdAt: new Date().toISOString(),
+            tokenUsage
+          });
+
+          ctx.logger.info('Firestore document created successfully', {
+            userId: authData.localId,
+            tokenUsage
+          });
+        } catch (err) {
+          ctx.logger.error('Failed to initialize Firestore document', err);
+          // Continue with signup but use default token values
+          res.status(500).json({ error: 'Failed to initialize Firestore document' });
+          return;
         }
 
         res.json({
-          uid: data.localId,
-          email: data.email,
-          displayName: data.displayName,
-          idToken: data.idToken,
-          refreshToken: data.refreshToken
+          uid: authData.localId,
+          email: authData.email,
+          displayName: authData.displayName,
+          idToken: authData.idToken,
+          refreshToken: authData.refreshToken,
+          tokens: {
+            remaining: tokenUsage.tokenRequestCount,
+            nextUpdate: tokenUsage.nextUpdate
+          }
         });
       } catch (err) {
         ctx.logger.error('Signup failed', err);
@@ -152,12 +220,29 @@ const firebaseService: ServiceModule = {
           return res.status(401).json({ error: data.error?.message || 'Login failed' });
         }
 
+        // Get user's token usage from Firestore using service account
+        // Initialize Firebase Admin if not already initialized
+        if (!admin.apps.length) {
+          initializeFirebaseAdmin(ctx);
+        }
+
+        const userDoc = await admin.firestore().collection('users').doc(data.localId).get();
+        const userData = userDoc.data();
+        const tokenUsage = userData?.tokenUsage || {
+          tokenRequestCount: 10,
+          nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+        };
+
         res.json({
           uid: data.localId,
           email: data.email,
           displayName: data.displayName,
           idToken: data.idToken,
-          refreshToken: data.refreshToken
+          refreshToken: data.refreshToken,
+          tokens: {
+            remaining: tokenUsage.tokenRequestCount,
+            nextUpdate: tokenUsage.nextUpdate
+          }
         });
       } catch (err) {
         ctx.logger.error('Login failed', err);
@@ -238,11 +323,36 @@ const firebaseService: ServiceModule = {
         }
 
         const user = data.users[0];
+
+        // Get user's token usage from Firestore using service account
+        const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        if (!serviceAccountPath) {
+          throw new Error('GOOGLE_APPLICATION_CREDENTIALS not configured');
+        }
+
+        const serviceAccount = require(serviceAccountPath);
+        if (!admin.apps.length) {
+          initializeFirebaseAdmin(ctx);
+        }
+
+        const userDoc = await admin.firestore().collection('users').doc(data.localId).get();
+
+
+        const userData = userDoc.data();
+        const tokenUsage = userData?.tokenUsage || {
+          tokenRequestCount: 10,
+          nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+        };
+
         res.json({
           uid: user.localId,
           email: user.email,
           displayName: user.displayName,
-          emailVerified: user.emailVerified === 'true'
+          emailVerified: user.emailVerified === 'true',
+          tokens: {
+            remaining: parseInt(tokenUsage.tokenRequestCount?.integerValue || '0'),
+            nextUpdate: tokenUsage.nextUpdate?.stringValue || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+          }
         });
       } catch (err) {
         ctx.logger.error('Token verification failed', err);
@@ -300,12 +410,141 @@ const firebaseService: ServiceModule = {
       });
     });
 
+    // Firestore User Endpoints
+    // POST /firestore/users/:uid - Create user
+    app.post('/firestore/users/:uid', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
+      try {
+        // Ensure user can only create their own data
+        if (req.params.uid !== req.user?.uid) {
+          return res.status(403).json({ error: 'Unauthorized access to user data' });
+        }
+
+        const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        if (!serviceAccountPath) {
+          throw new Error('GOOGLE_APPLICATION_CREDENTIALS not configured');
+        }
+
+        const serviceAccount = require(serviceAccountPath);
+        if (!admin.apps.length) {
+          initializeFirebaseAdmin(ctx);
+        }
+        const userDoc = await admin.firestore().collection('users').doc(req.params.uid).get();
+
+        // First check if user already exists
+        const userData = userDoc.data();
+        if (userData) {
+          return res.json(userData);
+        }
+
+        // Create new user document
+        await admin.firestore().collection('users').doc(req.params.uid).set({
+          ...req.body,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          tokenUsage: {
+            tokenRequestCount: 10,
+            nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+          }
+        });
+
+        const newDoc = await admin.firestore().collection('users').doc(req.params.uid).get();
+        res.json(newDoc.data());
+      } catch (err) {
+        ctx.logger.error('Failed to create user', err);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // GET /firestore/users/:uid - Get user data
+    app.get('/firestore/users/:uid', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
+      try {
+        // Ensure user can only access their own data
+        if (req.params.uid !== req.user?.uid) {
+          return res.status(403).json({ error: 'Unauthorized access to user data' });
+        }
+
+        if (!admin.apps.length) {
+          initializeFirebaseAdmin(ctx);
+        }
+
+        const userDoc = await admin.firestore().collection('users').doc(req.params.uid).get();
+        const userData = userDoc.data();
+
+        if (!userData) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.json(userData);
+      } catch (err) {
+        ctx.logger.error('Failed to get user data', err);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // POST /firestore/users/:uid/last-login - Update user's last login
+    app.post('/firestore/users/:uid/last-login', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
+      try {
+        // Ensure user can only update their own data
+        if (req.params.uid !== req.user?.uid) {
+          return res.status(403).json({ error: 'Unauthorized access to user data' });
+        }
+
+        if (!admin.apps.length) {
+          initializeFirebaseAdmin(ctx);
+        }
+
+        const now = new Date().toISOString();
+        await admin.firestore().collection('users').doc(req.params.uid).update({
+          lastLoginAt: now,
+          'stats.lastActiveAt': now,
+          updatedAt: now
+        });
+
+        res.json({ success: true });
+      } catch (err) {
+        ctx.logger.error('Failed to update last login', err);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // POST /firestore/users/:uid/stats - Update user's stats
+    app.post('/firestore/users/:uid/stats', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
+      try {
+        // Ensure user can only update their own data
+        if (req.params.uid !== req.user?.uid) {
+          return res.status(403).json({ error: 'Unauthorized access to user data' });
+        }
+
+        if (!admin.apps.length) {
+          initializeFirebaseAdmin(ctx);
+        }
+
+        const now = new Date().toISOString();
+        const stats = req.body;
+        await admin.firestore().collection('users').doc(req.params.uid).update({
+          stats,
+          'stats.lastActiveAt': now,
+          updatedAt: now
+        });
+
+        res.json({ success: true });
+      } catch (err) {
+        ctx.logger.error('Failed to update user stats', err);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     // GET /firestore/config - Get Firebase client config (gated by valid ID token)
     app.get('/firestore/config', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
       try {
         // Token is already verified by middleware
         if (!req.user) {
           return res.status(401).json({ error: 'User not authenticated' });
+        }
+
+        // Get user's token usage from Firestore using service account
+        if (!admin.apps.length) {
+          initializeFirebaseAdmin(ctx);
         }
 
         res.json({
@@ -317,7 +556,8 @@ const firebaseService: ServiceModule = {
             databaseURL: firebaseConfig!.databaseURL,
             storageBucket: `${firebaseConfig!.projectId}.appspot.com`,
             messagingSenderId: process.env.FIREBASE_PROJECT_NUMBER,
-            appId: process.env.FIREBASE_APP_ID || '1:165511796478:web:your-app-id'
+            appId: process.env.FIREBASE_APP_ID || '1:165511796478:web:your-app-id',
+            // No need to expose service token when using Admin SDK
           }
         });
       } catch (err) {

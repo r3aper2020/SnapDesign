@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import type { ServiceModule, ServiceContext } from '../../core/types';
 import { GoogleGenAI } from '@google/genai';
 import { verifyFirebaseToken } from '../../core/auth';
+import { checkTokenUsage } from '../../core/tokens';
 
 const designService: ServiceModule = {
   name: 'design',
@@ -51,50 +52,53 @@ const designService: ServiceModule = {
     });
 
     // POST /design/decorate
-    app.post('/design/decorate', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
-      try {
-        const { SchemaType } = await import('@google/generative-ai');
+    app.post('/design/decorate',
+      (req, res, next) => verifyFirebaseToken(req, res, next, ctx),
+      (req, res, next) => checkTokenUsage(req, res, next, ctx),
+      async (req, res) => {
+        try {
+          const { SchemaType } = await import('@google/generative-ai');
 
-        const { imageBase64, description, mimeType = 'image/jpeg', serviceType } = req.body as {
-          imageBase64?: string;
-          description?: string;
-          mimeType?: string;
-          serviceType?: string;
-        };
+          const { imageBase64, description, mimeType = 'image/jpeg', serviceType } = req.body as {
+            imageBase64?: string;
+            description?: string;
+            mimeType?: string;
+            serviceType?: string;
+          };
 
-        if (!imageBase64) {
-          return res.status(400).json({ error: 'imageBase64 is required' });
-        }
+          if (!imageBase64) {
+            return res.status(400).json({ error: 'imageBase64 is required' });
+          }
 
-        let cleanBase64 = imageBase64;
-        if (imageBase64.includes(';base64,')) {
-          cleanBase64 = imageBase64.split(';base64,')[1];
-        }
+          let cleanBase64 = imageBase64;
+          if (imageBase64.includes(';base64,')) {
+            cleanBase64 = imageBase64.split(';base64,')[1];
+          }
 
-        const project = process.env.GEMINI_PROJECT_ID
-        const location = process.env.GEMINI_LOCATION
-        if (!project || !location) {
-          throw new Error('GEMINI_PROJECT_ID and GEMINI_LOCATION must be set');
-        }
-        ctx.logger.info("Loading with credentials: ", process.env.GOOGLE_APPLICATION_CREDENTIALS)
-        const ai = new GoogleGenAI({ vertexai: true, project, location, apiVersion: 'v1' });
+          const project = process.env.GEMINI_PROJECT_ID
+          const location = process.env.GEMINI_LOCATION
+          if (!project || !location) {
+            throw new Error('GEMINI_PROJECT_ID and GEMINI_LOCATION must be set');
+          }
+          ctx.logger.info("Loading with credentials: ", process.env.GOOGLE_APPLICATION_CREDENTIALS)
+          const ai = new GoogleGenAI({ vertexai: true, project, location, apiVersion: 'v1' });
 
-        const imageModelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview';
-        const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash';
+          const imageModelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview';
+          const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash';
 
-        ctx.logger.info('Using Gemini models', {
-          imageModel: imageModelName,
-          textModel: textModelName,
-          project: project,
-          location: location
-        });
+          ctx.logger.info('Using Gemini models', {
+            imageModel: imageModelName,
+            textModel: textModelName,
+            project: project,
+            location: location
+          });
 
 
-        const isDeclutterService = serviceType === 'declutter';
-        const isMakeoverService = serviceType === 'makeover';
+          const isDeclutterService = serviceType === 'declutter';
+          const isMakeoverService = serviceType === 'makeover';
 
-        const decoratePrompt = isDeclutterService
-          ? `This is the AFTER photo of the same room.
+          const decoratePrompt = isDeclutterService
+            ? `This is the AFTER photo of the same room.
 The space is perfectly staged for a real estate showing: spotless, uncluttered, and pristine.
 
 The floor is 100% clear — absolutely no clothes, toys, shoes, boxes, or items of any kind.
@@ -112,8 +116,8 @@ Living areas show only staged furniture and original decor (no extra items).
 Furniture, layout, walls, doors, and windows remain unchanged.
 
 The result: a room that looks as if a professional home stager has completely decluttered and organized it — clean, empty, and ready to show.`
-          : isMakeoverService
-            ? `You are a professional interior designer and home makeover specialist with expert spatial awareness. 
+            : isMakeoverService
+              ? `You are a professional interior designer and home makeover specialist with expert spatial awareness. 
 
 🎯 PRIMARY OBJECTIVE: Follow the user's EXACT vision and requirements: "${description || 'complete room makeover'}"
 
@@ -176,7 +180,7 @@ STYLE EXECUTION (adapt based on user's specific requests):
 - If user wants a theme: fully embrace that theme
 
 Transform this space into a complete makeover that EXACTLY reflects the user's vision: "${description || 'complete room makeover'}" while keeping the room layout exactly the same and maintaining clear pathways and access to all areas.`
-            : `You are a professional interior designer with expert spatial awareness. 
+              : `You are a professional interior designer with expert spatial awareness. 
 
 🎯 PRIMARY OBJECTIVE: Follow the user's EXACT request: "${description || 'decorate this space'}"
 
@@ -230,28 +234,28 @@ TECHNICAL REQUIREMENTS:
 
 Create a tasteful, well-styled space by adding the EXACT decorations and enhancements the user requested: "${description || 'decorate this space'}" while preserving the original room structure, layout, and maintaining clear pathways and access to all areas.`;
 
-        let gen1;
-        try {
-          gen1 = await ai.models.generateContent({
-            model: imageModelName,
-            config: {
-              responseModalities: ['TEXT', "IMAGE"],
-              candidateCount: 1,
-            },
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  { inlineData: { mimeType, data: cleanBase64 } },
-                  { text: decoratePrompt }
-                ],
-              }
-            ]
-          });
-        } catch (error) {
-          ctx.logger.error('First generation attempt failed:', error);
-          // Try with a more aggressive prompt if the first one fails
-          const aggressivePrompt = `This is the AFTER photo of the same room.
+          let gen1;
+          try {
+            gen1 = await ai.models.generateContent({
+              model: imageModelName,
+              config: {
+                responseModalities: ['TEXT', "IMAGE"],
+                candidateCount: 1,
+              },
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    { inlineData: { mimeType, data: cleanBase64 } },
+                    { text: decoratePrompt }
+                  ],
+                }
+              ]
+            });
+          } catch (error) {
+            ctx.logger.error('First generation attempt failed:', error);
+            // Try with a more aggressive prompt if the first one fails
+            const aggressivePrompt = `This is the AFTER photo of the same room.
 The space is perfectly staged for a real estate showing: spotless, uncluttered, and pristine.
 
 The floor is 100% clear — absolutely no clothes, toys, shoes, boxes, or items of any kind.
@@ -270,76 +274,76 @@ Furniture, layout, walls, doors, and windows remain unchanged.
 
 The result: a room that looks as if a professional home stager has completely decluttered and organized it — clean, empty, and ready to show.`;
 
-          gen1 = await ai.models.generateContent({
-            model: imageModelName,
-            config: {
-              responseModalities: ['TEXT', "IMAGE"],
-              candidateCount: 1,
-            },
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  { inlineData: { mimeType, data: cleanBase64 } },
-                  { text: aggressivePrompt }
-                ]
-              }
-            ]
-          });
-        }
+            gen1 = await ai.models.generateContent({
+              model: imageModelName,
+              config: {
+                responseModalities: ['TEXT', "IMAGE"],
+                candidateCount: 1,
+              },
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    { inlineData: { mimeType, data: cleanBase64 } },
+                    { text: aggressivePrompt }
+                  ]
+                }
+              ]
+            });
+          }
 
-        const gen1Resp: any = gen1;
-        const parts: any[] = gen1Resp?.candidates?.[0]?.content?.parts || [];
-        const imagePart = parts.find((p: any) => p.inlineData?.data);
-        if (!imagePart) {
-          return res.status(500).json({ error: 'No image returned from image model' });
-        }
-        const editedBase64: string = imagePart.inlineData.data;
+          const gen1Resp: any = gen1;
+          const parts: any[] = gen1Resp?.candidates?.[0]?.content?.parts || [];
+          const imagePart = parts.find((p: any) => p.inlineData?.data);
+          if (!imagePart) {
+            return res.status(500).json({ error: 'No image returned from image model' });
+          }
+          const editedBase64: string = imagePart.inlineData.data;
 
-        const imageUsage = gen1Resp?.usageMetadata || {};
+          const imageUsage = gen1Resp?.usageMetadata || {};
 
-        const productSchema = {
-          type: SchemaType.OBJECT,
-          properties: {
-            description: { type: SchemaType.STRING },
-            items: {
-              type: SchemaType.ARRAY,
+          const productSchema = {
+            type: SchemaType.OBJECT,
+            properties: {
+              description: { type: SchemaType.STRING },
               items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  name: { type: SchemaType.STRING },
-                  type: { type: SchemaType.STRING },
-                  qty: { type: SchemaType.INTEGER },
-                  color: { type: SchemaType.STRING, nullable: true },
-                  approxDimensionsInches: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                      w: { type: SchemaType.NUMBER },
-                      h: { type: SchemaType.NUMBER },
-                      d: { type: SchemaType.NUMBER, nullable: true }
-                    }
+                type: SchemaType.ARRAY,
+                items: {
+                  type: SchemaType.OBJECT,
+                  properties: {
+                    name: { type: SchemaType.STRING },
+                    type: { type: SchemaType.STRING },
+                    qty: { type: SchemaType.INTEGER },
+                    color: { type: SchemaType.STRING, nullable: true },
+                    approxDimensionsInches: {
+                      type: SchemaType.OBJECT,
+                      properties: {
+                        w: { type: SchemaType.NUMBER },
+                        h: { type: SchemaType.NUMBER },
+                        d: { type: SchemaType.NUMBER, nullable: true }
+                      }
+                    },
+                    placement: {
+                      type: SchemaType.OBJECT,
+                      properties: {
+                        note: { type: SchemaType.STRING, nullable: true },
+                        bboxNorm: { type: SchemaType.ARRAY, items: { type: SchemaType.NUMBER } }
+                      }
+                    },
+                    keywords: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+                    description: { type: SchemaType.STRING, nullable: true },
+                    estPriceUSD: { type: SchemaType.NUMBER, nullable: true }
                   },
-                  placement: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                      note: { type: SchemaType.STRING, nullable: true },
-                      bboxNorm: { type: SchemaType.ARRAY, items: { type: SchemaType.NUMBER } }
-                    }
-                  },
-                  keywords: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-                  description: { type: SchemaType.STRING, nullable: true },
-                  estPriceUSD: { type: SchemaType.NUMBER, nullable: true }
-                },
-                required: ['name', 'type', 'qty', 'keywords', 'placement']
-              }
+                  required: ['name', 'type', 'qty', 'keywords', 'placement']
+                }
+              },
+              safetyNotes: { type: SchemaType.STRING }
             },
-            safetyNotes: { type: SchemaType.STRING }
-          },
-          required: ['description', 'items']
-        } as const;
+            required: ['description', 'items']
+          } as const;
 
-        const analysisPrompt = isDeclutterService
-          ? `Compare ORIGINAL vs EDITED images. Analyze the ORIGINAL image to identify what type of room this is and what specific items need to be organized. Create a contextual, step-by-step plan tailored to this specific space and its contents.
+          const analysisPrompt = isDeclutterService
+            ? `Compare ORIGINAL vs EDITED images. Analyze the ORIGINAL image to identify what type of room this is and what specific items need to be organized. Create a contextual, step-by-step plan tailored to this specific space and its contents.
 
 ANALYZE THE ORIGINAL IMAGE FIRST:
 - What type of room is this? (bedroom, playroom, office, living room, kitchen, etc.)
@@ -404,8 +408,8 @@ REALISTIC TIME ESTIMATES:
 - Consider the actual amount of items visible in the image
 
 Create 4-6 practical, contextual steps that are specific to the room type and items actually visible in the ORIGINAL image. Make the steps meaningful and supportive for someone who doesn't know where to start.`
-          : isMakeoverService
-            ? `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the complete makeover shown in EDITED.
+            : isMakeoverService
+              ? `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the complete makeover shown in EDITED.
 
 The user requested: "${description}"
 
@@ -472,7 +476,7 @@ Return valid JSON with this exact structure:
   ],
   "safetyNotes": "Any safety considerations for the makeover"
 }`
-            : `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
+              : `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
 
 The user requested: "${description}"
 
@@ -530,241 +534,244 @@ Return valid JSON with this exact structure:
 
 Use normalized bbox coordinates (0..1) around each added item. Include ALL products needed to achieve the design changes.`;
 
-        let gen2;
-        try {
-          gen2 = await ai.models.generateContent({
-            model: textModelName,
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  { text: analysisPrompt },
-                  { inlineData: { mimeType, data: cleanBase64 } },
-                  { inlineData: { mimeType: 'image/png', data: editedBase64 } }
-                ]
-              }
-            ]
-          });
-        } catch (textError: any) {
-          ctx.logger.error('Text analysis error:', textError);
-          return res.status(500).json({
-            error: 'Failed to analyze images. Please try again with a different image or theme.',
-            details: textError.message
-          });
-        }
-
-        const gen2Resp: any = gen2;
-        const productsJson = gen2Resp.text as string;
-
-        const textUsage = gen2Resp?.usageMetadata || {};
-
-        let cleanJson = productsJson;
-        if (productsJson.includes('```json')) {
-          cleanJson = productsJson.split('```json')[1].split('```')[0];
-        } else if (productsJson.includes('```')) {
-          cleanJson = productsJson.split('```')[1];
-        }
-
-        let analysisResult: any;
-        try {
-          analysisResult = JSON.parse(cleanJson);
-        } catch (parseError: any) {
-          ctx.logger.error('JSON parse error:', parseError);
-          return res.status(500).json({
-            error: 'Failed to parse AI response. Please try again.',
-            details: 'Invalid JSON format from AI'
-          });
-        }
-
-        const totalTokens = {
-          imageGeneration: {
-            inputTokens: imageUsage.promptTokenCount || 0,
-            outputTokens: imageUsage.candidatesTokenCount || 0,
-            totalTokens: imageUsage.totalTokenCount || 0
-          },
-          textAnalysis: {
-            inputTokens: textUsage.promptTokenCount || 0,
-            outputTokens: textUsage.candidatesTokenCount || 0,
-            totalTokens: textUsage.totalTokenCount || 0
-          },
-          grandTotal: (imageUsage.totalTokenCount || 0) + (textUsage.totalTokenCount || 0),
-          inputTokensTotal: (imageUsage.promptTokenCount || 0) + (textUsage.promptTokenCount || 0),
-          outputTokensTotal: (imageUsage.candidatesTokenCount || 0) + (textUsage.candidatesTokenCount || 0)
-        };
-
-        if (isDeclutterService) {
-          // For decluttering service, return cleaning steps
-          const cleaningSteps = analysisResult.cleaningSteps || [];
-
-          // Add completed: false to each step
-          const stepsWithStatus = cleaningSteps.map((step: any, index: number) => ({
-            ...step,
-            id: step.id || `step_${index + 1}`,
-            completed: false
-          }));
-
-          return res.json({
-            editedImageBase64: editedBase64,
-            cleaningSteps: stepsWithStatus,
-            tokenUsage: totalTokens
-          });
-        } else if (isMakeoverService) {
-          // For makeover service, return products (same as design service)
-          const products = analysisResult;
-
-          for (const product of products.items || []) {
-            const searchTerms: string[] = [];
-
-            if (product.qty > 1) {
-              searchTerms.push(`${product.qty}`);
-            }
-
-            if (product.color) {
-              if (Array.isArray(product.color)) {
-                searchTerms.push(product.color[0]);
-              } else if (typeof product.color === 'string') {
-                const colors = product.color.split(',').map((c: string) => c.trim());
-                searchTerms.push(colors[0]);
-              }
-            }
-
-            let searchDescription = product.name;
-
-            if (product.placement?.note) {
-              const placement = (product.placement.note as string).toLowerCase();
-              if (placement.includes('above') || placement.includes('hanging')) {
-                searchDescription = `hanging ${searchDescription}`;
-              }
-            }
-
-            if (product.description) {
-              searchDescription = product.description;
-            }
-
-            searchTerms.push(searchDescription);
-
-            const associateTag = process.env.AMAZON_PARTNER_TAG;
-            const amazonHost = process.env.AMAZON_HOST || 'www.amazon.com';
-            const searchQuery = encodeURIComponent(searchTerms.join(' '));
-            const baseUrl = `https://${amazonHost}/s?k=${searchQuery}`;
-            const urlWithTag = associateTag ? `${baseUrl}&tag=${encodeURIComponent(associateTag)}` : baseUrl;
-
-            product.amazonLink = urlWithTag;
+          let gen2;
+          try {
+            gen2 = await ai.models.generateContent({
+              model: textModelName,
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    { text: analysisPrompt },
+                    { inlineData: { mimeType, data: cleanBase64 } },
+                    { inlineData: { mimeType: 'image/png', data: editedBase64 } }
+                  ]
+                }
+              ]
+            });
+          } catch (textError: any) {
+            ctx.logger.error('Text analysis error:', textError);
+            return res.status(500).json({
+              error: 'Failed to analyze images. Please try again with a different image or theme.',
+              details: textError.message
+            });
           }
 
-          return res.json({
-            editedImageBase64: editedBase64,
-            products: products.items || [],
-            tokenUsage: totalTokens
-          });
-        } else {
-          // For design service, return products
-          const products = analysisResult;
+          const gen2Resp: any = gen2;
+          const productsJson = gen2Resp.text as string;
 
-          for (const product of products.items || []) {
-            const searchTerms: string[] = [];
+          const textUsage = gen2Resp?.usageMetadata || {};
 
-            if (product.qty > 1) {
-              searchTerms.push(`${product.qty}`);
-            }
-
-            if (product.color) {
-              if (Array.isArray(product.color)) {
-                searchTerms.push(product.color[0]);
-              } else if (typeof product.color === 'string') {
-                const colors = product.color.split(',').map((c: string) => c.trim());
-                searchTerms.push(colors[0]);
-              }
-            }
-
-            let searchDescription = product.name;
-
-            if (product.placement?.note) {
-              const placement = (product.placement.note as string).toLowerCase();
-              if (placement.includes('above') || placement.includes('hanging')) {
-                searchDescription = `hanging ${searchDescription}`;
-              }
-              if (placement.includes('large') || placement.includes('tall')) {
-                searchDescription = `large ${searchDescription}`;
-              }
-              if (placement.includes('human') || placement.includes('life size')) {
-                searchDescription = `human sized ${searchDescription}`;
-              }
-              if (placement.includes('small') || placement.includes('mini')) {
-                searchDescription = `small ${searchDescription}`;
-              }
-            }
-
-            searchTerms.push(searchDescription);
-
-            if (product.description) {
-              searchTerms.push(product.description);
-            }
-
-            const searchQuery = searchTerms.join(' ');
-            product.amazonLink = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}&tag=snapdesign-20`;
+          let cleanJson = productsJson;
+          if (productsJson.includes('```json')) {
+            cleanJson = productsJson.split('```json')[1].split('```')[0];
+          } else if (productsJson.includes('```')) {
+            cleanJson = productsJson.split('```')[1];
           }
 
-          return res.json({
-            editedImageBase64: editedBase64,
-            products,
-            tokenUsage: totalTokens
-          });
+          let analysisResult: any;
+          try {
+            analysisResult = JSON.parse(cleanJson);
+          } catch (parseError: any) {
+            ctx.logger.error('JSON parse error:', parseError);
+            return res.status(500).json({
+              error: 'Failed to parse AI response. Please try again.',
+              details: 'Invalid JSON format from AI'
+            });
+          }
+
+          const totalTokens = {
+            imageGeneration: {
+              inputTokens: imageUsage.promptTokenCount || 0,
+              outputTokens: imageUsage.candidatesTokenCount || 0,
+              totalTokens: imageUsage.totalTokenCount || 0
+            },
+            textAnalysis: {
+              inputTokens: textUsage.promptTokenCount || 0,
+              outputTokens: textUsage.candidatesTokenCount || 0,
+              totalTokens: textUsage.totalTokenCount || 0
+            },
+            grandTotal: (imageUsage.totalTokenCount || 0) + (textUsage.totalTokenCount || 0),
+            inputTokensTotal: (imageUsage.promptTokenCount || 0) + (textUsage.promptTokenCount || 0),
+            outputTokensTotal: (imageUsage.candidatesTokenCount || 0) + (textUsage.candidatesTokenCount || 0)
+          };
+
+          if (isDeclutterService) {
+            // For decluttering service, return cleaning steps
+            const cleaningSteps = analysisResult.cleaningSteps || [];
+
+            // Add completed: false to each step
+            const stepsWithStatus = cleaningSteps.map((step: any, index: number) => ({
+              ...step,
+              id: step.id || `step_${index + 1}`,
+              completed: false
+            }));
+
+            return res.json({
+              editedImageBase64: editedBase64,
+              cleaningSteps: stepsWithStatus,
+              tokenUsage: totalTokens
+            });
+          } else if (isMakeoverService) {
+            // For makeover service, return products (same as design service)
+            const products = analysisResult;
+
+            for (const product of products.items || []) {
+              const searchTerms: string[] = [];
+
+              if (product.qty > 1) {
+                searchTerms.push(`${product.qty}`);
+              }
+
+              if (product.color) {
+                if (Array.isArray(product.color)) {
+                  searchTerms.push(product.color[0]);
+                } else if (typeof product.color === 'string') {
+                  const colors = product.color.split(',').map((c: string) => c.trim());
+                  searchTerms.push(colors[0]);
+                }
+              }
+
+              let searchDescription = product.name;
+
+              if (product.placement?.note) {
+                const placement = (product.placement.note as string).toLowerCase();
+                if (placement.includes('above') || placement.includes('hanging')) {
+                  searchDescription = `hanging ${searchDescription}`;
+                }
+              }
+
+              if (product.description) {
+                searchDescription = product.description;
+              }
+
+              searchTerms.push(searchDescription);
+
+              const associateTag = process.env.AMAZON_PARTNER_TAG;
+              const amazonHost = process.env.AMAZON_HOST || 'www.amazon.com';
+              const searchQuery = encodeURIComponent(searchTerms.join(' '));
+              const baseUrl = `https://${amazonHost}/s?k=${searchQuery}`;
+              const urlWithTag = associateTag ? `${baseUrl}&tag=${encodeURIComponent(associateTag)}` : baseUrl;
+
+              product.amazonLink = urlWithTag;
+            }
+
+            return res.json({
+              editedImageBase64: editedBase64,
+              products: products.items || [],
+              tokenUsage: totalTokens
+            });
+          } else {
+            // For design service, return products
+            const products = analysisResult;
+
+            for (const product of products.items || []) {
+              const searchTerms: string[] = [];
+
+              if (product.qty > 1) {
+                searchTerms.push(`${product.qty}`);
+              }
+
+              if (product.color) {
+                if (Array.isArray(product.color)) {
+                  searchTerms.push(product.color[0]);
+                } else if (typeof product.color === 'string') {
+                  const colors = product.color.split(',').map((c: string) => c.trim());
+                  searchTerms.push(colors[0]);
+                }
+              }
+
+              let searchDescription = product.name;
+
+              if (product.placement?.note) {
+                const placement = (product.placement.note as string).toLowerCase();
+                if (placement.includes('above') || placement.includes('hanging')) {
+                  searchDescription = `hanging ${searchDescription}`;
+                }
+                if (placement.includes('large') || placement.includes('tall')) {
+                  searchDescription = `large ${searchDescription}`;
+                }
+                if (placement.includes('human') || placement.includes('life size')) {
+                  searchDescription = `human sized ${searchDescription}`;
+                }
+                if (placement.includes('small') || placement.includes('mini')) {
+                  searchDescription = `small ${searchDescription}`;
+                }
+              }
+
+              searchTerms.push(searchDescription);
+
+              if (product.description) {
+                searchTerms.push(product.description);
+              }
+
+              const searchQuery = searchTerms.join(' ');
+              product.amazonLink = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}&tag=snapdesign-20`;
+            }
+
+            return res.json({
+              editedImageBase64: editedBase64,
+              products,
+              tokenUsage: totalTokens
+            });
+          }
+        } catch (err: any) {
+          ctx.logger.error('decorate error', err);
+          return res.status(500).json({ error: err.message || 'decorate failed' });
         }
-      } catch (err: any) {
-        ctx.logger.error('decorate error', err);
-        return res.status(500).json({ error: err.message || 'decorate failed' });
-      }
-    });
+      });
 
     // POST /design/edit
-    app.post('/design/edit', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
-      try {
-        const { GoogleGenerativeAI, SchemaType } = await import('@google/generative-ai');
-        const { GoogleGenAI } = await import('@google/genai');
+    app.post('/design/edit',
+      (req, res, next) => verifyFirebaseToken(req, res, next, ctx),
+      (req, res, next) => checkTokenUsage(req, res, next, ctx),
+      async (req, res) => {
+        try {
+          const { SchemaType } = await import('@google/generative-ai');
 
 
-        const { imageBase64, editInstructions, mimeType = 'image/jpeg', serviceType } = req.body as {
-          imageBase64?: string;
-          editInstructions?: string;
-          mimeType?: string;
-          serviceType?: string;
-        };
+
+          const { imageBase64, editInstructions, mimeType = 'image/jpeg', serviceType } = req.body as {
+            imageBase64?: string;
+            editInstructions?: string;
+            mimeType?: string;
+            serviceType?: string;
+          };
 
 
-        if (!imageBase64) {
-          return res.status(400).json({ error: 'imageBase64 is required' });
-        }
+          if (!imageBase64) {
+            return res.status(400).json({ error: 'imageBase64 is required' });
+          }
 
-        if (!editInstructions) {
-          return res.status(400).json({ error: 'editInstructions is required' });
-        }
+          if (!editInstructions) {
+            return res.status(400).json({ error: 'editInstructions is required' });
+          }
 
-        let cleanBase64 = imageBase64;
-        if (imageBase64.includes(';base64,')) {
-          cleanBase64 = imageBase64.split(';base64,')[1];
-        }
+          let cleanBase64 = imageBase64;
+          if (imageBase64.includes(';base64,')) {
+            cleanBase64 = imageBase64.split(';base64,')[1];
+          }
 
-        const project = process.env.GEMINI_PROJECT_ID || process.env.GCP_PROJECT_ID;
-        const location = process.env.GEMINI_LOCATION || process.env.GCP_LOCATION;
-        if (!project || !location) {
-          throw new Error('GEMINI_PROJECT_ID/GCP_PROJECT_ID and GEMINI_LOCATION/GCP_LOCATION must be set');
-        }
-        const ai = new GoogleGenAI({ vertexai: true, project, location, apiVersion: 'v1' });
-        const imageModelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview';
-        const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash';
+          const project = process.env.GEMINI_PROJECT_ID || process.env.GCP_PROJECT_ID;
+          const location = process.env.GEMINI_LOCATION || process.env.GCP_LOCATION;
+          if (!project || !location) {
+            throw new Error('GEMINI_PROJECT_ID/GCP_PROJECT_ID and GEMINI_LOCATION/GCP_LOCATION must be set');
+          }
+          const ai = new GoogleGenAI({ vertexai: true, project, location, apiVersion: 'v1' });
+          const imageModelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview';
+          const textModelName = process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash';
 
-        // Using @google/genai against Vertex AI with ADC (GOOGLE_APPLICATION_CREDENTIALS)
+          // Using @google/genai against Vertex AI with ADC (GOOGLE_APPLICATION_CREDENTIALS)
 
-        const isDeclutterService = serviceType === 'declutter';
-        const isMakeoverService = serviceType === 'makeover';
+          const isDeclutterService = serviceType === 'declutter';
+          const isMakeoverService = serviceType === 'makeover';
 
-        if (isDeclutterService) {
-          return res.status(400).json({ error: 'Edit functionality is not available for declutter service' });
-        }
+          if (isDeclutterService) {
+            return res.status(400).json({ error: 'Edit functionality is not available for declutter service' });
+          }
 
-        const editPrompt = isMakeoverService
-          ? `You are a professional interior designer and home makeover specialist with expert spatial awareness. 
+          const editPrompt = isMakeoverService
+            ? `You are a professional interior designer and home makeover specialist with expert spatial awareness. 
 🎯 PRIMARY OBJECTIVE: Follow the user's EXACT edit instructions: "${editInstructions}"
 CRITICAL: The user's specific edit instructions are the TOP PRIORITY. Every modification must align with their exact request.
 ⚠️ IMPORTANT: The user has specifically requested: "${editInstructions}"
@@ -786,7 +793,7 @@ WHAT YOU CAN CHANGE (following user's specific requests):
 - Wall colors and treatments
 - Flooring materials and finishes
 Please implement the EXACT changes requested: "${editInstructions}" while keeping the room layout exactly the same and maintaining clear pathways and access to all areas.`
-          : `You are a professional interior designer with expert spatial awareness. 
+            : `You are a professional interior designer with expert spatial awareness. 
 🎯 PRIMARY OBJECTIVE: Follow the user's EXACT edit instructions: "${editInstructions}"
 CRITICAL: The user's specific edit instructions are the TOP PRIORITY. Every modification must align with their exact request.
 ⚠️ IMPORTANT: The user has specifically requested: "${editInstructions}"
@@ -845,74 +852,74 @@ IMPLEMENTATION FOCUS:
 
 Please implement the EXACT changes requested: "${editInstructions}" while maintaining clear pathways and access to all areas.`;
 
-        const gen1 = await ai.models.generateContent({
-          model: imageModelName,
-          config: {
-            responseModalities: ['TEXT', "IMAGE"],
-            candidateCount: 1,
-          },
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { inlineData: { mimeType, data: cleanBase64 } },
-                { text: editPrompt }
-              ]
-            }
-          ]
-        });
-
-        const gen1Resp: any = gen1;
-        const parts: any[] = gen1Resp?.candidates?.[0]?.content?.parts || [];
-        const imagePart = parts.find((p: any) => p.inlineData?.data);
-        if (!imagePart) {
-          return res.status(500).json({ error: 'No image returned from image model' });
-        }
-        const editedBase64: string = imagePart.inlineData.data;
-
-        const imageUsage = gen1Resp?.usageMetadata || {};
-
-        const productSchema = {
-          type: SchemaType.OBJECT,
-          properties: {
-            description: { type: SchemaType.STRING },
-            items: {
-              type: SchemaType.ARRAY,
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  name: { type: SchemaType.STRING },
-                  type: { type: SchemaType.STRING },
-                  qty: { type: SchemaType.INTEGER },
-                  color: { type: SchemaType.STRING, nullable: true },
-                  approxDimensionsInches: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                      w: { type: SchemaType.NUMBER },
-                      h: { type: SchemaType.NUMBER },
-                      d: { type: SchemaType.NUMBER, nullable: true }
-                    }
-                  },
-                  placement: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                      note: { type: SchemaType.STRING, nullable: true },
-                      bboxNorm: { type: SchemaType.ARRAY, items: { type: SchemaType.NUMBER } }
-                    }
-                  },
-                  keywords: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-                  description: { type: SchemaType.STRING, nullable: true },
-                  estPriceUSD: { type: SchemaType.NUMBER, nullable: true }
-                },
-                required: ['name', 'type', 'qty', 'keywords', 'placement']
-              }
+          const gen1 = await ai.models.generateContent({
+            model: imageModelName,
+            config: {
+              responseModalities: ['TEXT', "IMAGE"],
+              candidateCount: 1,
             },
-            safetyNotes: { type: SchemaType.STRING }
-          },
-          required: ['description', 'items']
-        } as const;
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { inlineData: { mimeType, data: cleanBase64 } },
+                  { text: editPrompt }
+                ]
+              }
+            ]
+          });
 
-        const analysisPrompt = `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
+          const gen1Resp: any = gen1;
+          const parts: any[] = gen1Resp?.candidates?.[0]?.content?.parts || [];
+          const imagePart = parts.find((p: any) => p.inlineData?.data);
+          if (!imagePart) {
+            return res.status(500).json({ error: 'No image returned from image model' });
+          }
+          const editedBase64: string = imagePart.inlineData.data;
+
+          const imageUsage = gen1Resp?.usageMetadata || {};
+
+          const productSchema = {
+            type: SchemaType.OBJECT,
+            properties: {
+              description: { type: SchemaType.STRING },
+              items: {
+                type: SchemaType.ARRAY,
+                items: {
+                  type: SchemaType.OBJECT,
+                  properties: {
+                    name: { type: SchemaType.STRING },
+                    type: { type: SchemaType.STRING },
+                    qty: { type: SchemaType.INTEGER },
+                    color: { type: SchemaType.STRING, nullable: true },
+                    approxDimensionsInches: {
+                      type: SchemaType.OBJECT,
+                      properties: {
+                        w: { type: SchemaType.NUMBER },
+                        h: { type: SchemaType.NUMBER },
+                        d: { type: SchemaType.NUMBER, nullable: true }
+                      }
+                    },
+                    placement: {
+                      type: SchemaType.OBJECT,
+                      properties: {
+                        note: { type: SchemaType.STRING, nullable: true },
+                        bboxNorm: { type: SchemaType.ARRAY, items: { type: SchemaType.NUMBER } }
+                      }
+                    },
+                    keywords: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+                    description: { type: SchemaType.STRING, nullable: true },
+                    estPriceUSD: { type: SchemaType.NUMBER, nullable: true }
+                  },
+                  required: ['name', 'type', 'qty', 'keywords', 'placement']
+                }
+              },
+              safetyNotes: { type: SchemaType.STRING }
+            },
+            required: ['description', 'items']
+          } as const;
+
+          const analysisPrompt = `Compare ORIGINAL vs EDITED. List ALL items, materials, and supplies needed to achieve the changes shown in EDITED.
 
 The user requested: "${editInstructions}"
 
@@ -970,123 +977,123 @@ Return valid JSON with this exact structure:
 
 Use normalized bbox coordinates (0..1) around each added item. Include ALL products needed to achieve the design changes.`;
 
-        let gen2;
-        try {
-          gen2 = await ai.models.generateContent({
-            model: textModelName,
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  { text: analysisPrompt },
-                  { inlineData: { mimeType, data: cleanBase64 } },
-                  { inlineData: { mimeType: 'image/png', data: editedBase64 } }
-                ]
+          let gen2;
+          try {
+            gen2 = await ai.models.generateContent({
+              model: textModelName,
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    { text: analysisPrompt },
+                    { inlineData: { mimeType, data: cleanBase64 } },
+                    { inlineData: { mimeType: 'image/png', data: editedBase64 } }
+                  ]
+                }
+              ]
+            });
+          } catch (textError: any) {
+            ctx.logger.error('Text analysis error:', textError);
+            return res.status(500).json({
+              error: 'Failed to analyze images. Please try again with a different image or edit instructions.',
+              details: textError.message
+            });
+          }
+
+          const gen2Resp: any = gen2;
+          const productsJson = gen2Resp.text as string;
+
+          const textUsage = gen2Resp?.usageMetadata || {};
+
+          let cleanJson = productsJson;
+          if (productsJson.includes('```json')) {
+            cleanJson = productsJson.split('```json')[1].split('```')[0];
+          } else if (productsJson.includes('```')) {
+            cleanJson = productsJson.split('```')[1];
+          }
+
+          let products: any;
+          try {
+            products = JSON.parse(cleanJson);
+          } catch (parseError: any) {
+            ctx.logger.error('JSON parse error:', parseError);
+            return res.status(500).json({
+              error: 'Failed to parse AI response. Please try again.',
+              details: 'Invalid JSON format from AI'
+            });
+          }
+
+          for (const product of products.items) {
+            const searchTerms: string[] = [];
+
+            if (product.qty > 1) {
+              searchTerms.push(`${product.qty}`);
+            }
+
+            if (product.color) {
+              if (Array.isArray(product.color)) {
+                searchTerms.push(product.color[0]);
+              } else if (typeof product.color === 'string') {
+                const colors = product.color.split(',').map((c: string) => c.trim());
+                searchTerms.push(colors[0]);
               }
-            ]
+            }
+
+            let searchDescription = product.name;
+
+            if (product.placement?.note) {
+              const placement = (product.placement.note as string).toLowerCase();
+              if (placement.includes('above') || placement.includes('hanging')) {
+                searchDescription = `hanging ${searchDescription}`;
+              }
+              if (placement.includes('large') || placement.includes('tall')) {
+                searchDescription = `large ${searchDescription}`;
+              }
+              if (placement.includes('human') || placement.includes('life size')) {
+                searchDescription = `human sized ${searchDescription}`;
+              }
+              if (placement.includes('small') || placement.includes('mini')) {
+                searchDescription = `small ${searchDescription}`;
+              }
+            }
+
+            searchTerms.push(searchDescription);
+
+            if (product.description) {
+              searchTerms.push(product.description);
+            }
+
+            const searchQuery = searchTerms.join(' ');
+            product.amazonLink = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}&tag=snapdesign-20`;
+          }
+
+          const totalTokens = {
+            imageGeneration: {
+              inputTokens: imageUsage.promptTokenCount || 0,
+              outputTokens: imageUsage.candidatesTokenCount || 0,
+              totalTokens: imageUsage.totalTokenCount || 0
+            },
+            textAnalysis: {
+              inputTokens: textUsage.promptTokenCount || 0,
+              outputTokens: textUsage.candidatesTokenCount || 0,
+              totalTokens: textUsage.totalTokenCount || 0
+            },
+            grandTotal: (imageUsage.totalTokenCount || 0) + (textUsage.totalTokenCount || 0),
+            inputTokensTotal: (imageUsage.promptTokenCount || 0) + (textUsage.promptTokenCount || 0),
+            outputTokensTotal: (imageUsage.candidatesTokenCount || 0) + (textUsage.candidatesTokenCount || 0)
+          };
+
+          return res.json({
+            editedImageBase64: editedBase64,
+            products,
+            tokenUsage: totalTokens,
+            editInstructions
           });
-        } catch (textError: any) {
-          ctx.logger.error('Text analysis error:', textError);
-          return res.status(500).json({
-            error: 'Failed to analyze images. Please try again with a different image or edit instructions.',
-            details: textError.message
-          });
+        } catch (err: any) {
+          ctx.logger.error('edit error', err);
+          return res.status(500).json({ error: err.message || 'edit failed' });
         }
-
-        const gen2Resp: any = gen2;
-        const productsJson = gen2Resp.text as string;
-
-        const textUsage = gen2Resp?.usageMetadata || {};
-
-        let cleanJson = productsJson;
-        if (productsJson.includes('```json')) {
-          cleanJson = productsJson.split('```json')[1].split('```')[0];
-        } else if (productsJson.includes('```')) {
-          cleanJson = productsJson.split('```')[1];
-        }
-
-        let products: any;
-        try {
-          products = JSON.parse(cleanJson);
-        } catch (parseError: any) {
-          ctx.logger.error('JSON parse error:', parseError);
-          return res.status(500).json({
-            error: 'Failed to parse AI response. Please try again.',
-            details: 'Invalid JSON format from AI'
-          });
-        }
-
-        for (const product of products.items) {
-          const searchTerms: string[] = [];
-
-          if (product.qty > 1) {
-            searchTerms.push(`${product.qty}`);
-          }
-
-          if (product.color) {
-            if (Array.isArray(product.color)) {
-              searchTerms.push(product.color[0]);
-            } else if (typeof product.color === 'string') {
-              const colors = product.color.split(',').map((c: string) => c.trim());
-              searchTerms.push(colors[0]);
-            }
-          }
-
-          let searchDescription = product.name;
-
-          if (product.placement?.note) {
-            const placement = (product.placement.note as string).toLowerCase();
-            if (placement.includes('above') || placement.includes('hanging')) {
-              searchDescription = `hanging ${searchDescription}`;
-            }
-            if (placement.includes('large') || placement.includes('tall')) {
-              searchDescription = `large ${searchDescription}`;
-            }
-            if (placement.includes('human') || placement.includes('life size')) {
-              searchDescription = `human sized ${searchDescription}`;
-            }
-            if (placement.includes('small') || placement.includes('mini')) {
-              searchDescription = `small ${searchDescription}`;
-            }
-          }
-
-          searchTerms.push(searchDescription);
-
-          if (product.description) {
-            searchTerms.push(product.description);
-          }
-
-          const searchQuery = searchTerms.join(' ');
-          product.amazonLink = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}&tag=snapdesign-20`;
-        }
-
-        const totalTokens = {
-          imageGeneration: {
-            inputTokens: imageUsage.promptTokenCount || 0,
-            outputTokens: imageUsage.candidatesTokenCount || 0,
-            totalTokens: imageUsage.totalTokenCount || 0
-          },
-          textAnalysis: {
-            inputTokens: textUsage.promptTokenCount || 0,
-            outputTokens: textUsage.candidatesTokenCount || 0,
-            totalTokens: textUsage.totalTokenCount || 0
-          },
-          grandTotal: (imageUsage.totalTokenCount || 0) + (textUsage.totalTokenCount || 0),
-          inputTokensTotal: (imageUsage.promptTokenCount || 0) + (textUsage.promptTokenCount || 0),
-          outputTokensTotal: (imageUsage.candidatesTokenCount || 0) + (textUsage.candidatesTokenCount || 0)
-        };
-
-        return res.json({
-          editedImageBase64: editedBase64,
-          products,
-          tokenUsage: totalTokens,
-          editInstructions
-        });
-      } catch (err: any) {
-        ctx.logger.error('edit error', err);
-        return res.status(500).json({ error: err.message || 'edit failed' });
-      }
-    });
+      });
   }
 };
 
