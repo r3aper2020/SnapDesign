@@ -142,11 +142,14 @@ const firebaseService: ServiceModule = {
         }
 
         // Initialize user document with token usage in Firestore
+        const now = new Date();
+        const expiryDate = new Date(now.setMonth(now.getMonth() + 1));
         let tokenUsage = {
           tokenRequestCount: DEFAULT_FREE_TOKENS,
           subscriptionTier: SubscriptionTier.FREE,
-          lastReset: new Date().toISOString(),
-          nextReset: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
+          lastReset: now.toISOString(),
+          nextReset: expiryDate.toISOString(),
+          subscriptionEndDate: expiryDate.toISOString()
         };
 
         try {

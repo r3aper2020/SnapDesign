@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { ServiceContext } from './types';
 import * as admin from 'firebase-admin';
 import { FirebaseUser } from './auth';
+import { DEFAULT_FREE_TOKENS } from '../services/revenuecat';
 import { checkAndResetTokens, SubscriptionTier } from '../services/revenuecat';
 
 interface TokenUsage {
@@ -9,10 +10,58 @@ interface TokenUsage {
     subscriptionTier: SubscriptionTier;
     lastReset: string;
     nextReset: string | null;
+    subscriptionEndDate?: string | null;
 }
 
+// Check if subscription has expired and should be reset to free tier
+async function checkSubscriptionExpiry(
+    userId: string,
+    tokenUsage: TokenUsage,
+    ctx: ServiceContext
+): Promise<TokenUsage | null> {
+    try {
+        // Only check paid subscriptions
+        if (tokenUsage.subscriptionTier === SubscriptionTier.FREE) {
+            return null;
+        }
 
-// Import checkAndResetTokens from RevenueCat service instead of duplicating it here
+        const now = new Date();
+
+        // Check subscription end date first (most efficient)
+        if (tokenUsage.subscriptionEndDate && new Date(tokenUsage.subscriptionEndDate) <= now) {
+            ctx.logger.info('Subscription expired by date', { userId });
+            return {
+                tokenRequestCount: DEFAULT_FREE_TOKENS,
+                subscriptionTier: SubscriptionTier.FREE,
+                lastReset: now.toISOString(),
+                nextReset: new Date(now.setMonth(now.getMonth() + 1)).toISOString(),
+                subscriptionEndDate: null
+            };
+        }
+
+        // Only check RevenueCat if subscription should still be active
+        const { getSubscriber, getSubscriptionTier } = await import('../services/revenuecat');
+        const subscriber = await getSubscriber(userId);
+        const currentTier = subscriber ? getSubscriptionTier(subscriber) : SubscriptionTier.FREE;
+
+        // If subscription is no longer active in RevenueCat
+        if (currentTier === SubscriptionTier.FREE) {
+            ctx.logger.info('Subscription cancelled in RevenueCat', { userId });
+            return {
+                tokenRequestCount: DEFAULT_FREE_TOKENS,
+                subscriptionTier: SubscriptionTier.FREE,
+                lastReset: now.toISOString(),
+                nextReset: new Date(now.setMonth(now.getMonth() + 1)).toISOString(),
+                subscriptionEndDate: null
+            };
+        }
+
+        return null; // No changes needed
+    } catch (error) {
+        ctx.logger.error('Failed to check subscription expiry:', error);
+        return null; // On error, continue with existing token usage
+    }
+}
 
 export async function checkTokenUsage(
     req: Request,
@@ -34,10 +83,27 @@ export async function checkTokenUsage(
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Check and reset tokens if needed
-        const tokenUsage = await checkAndResetTokens(req.user.uid, ctx) || userData.tokenUsage;
+        // Get current token usage
+        let tokenUsage = userData.tokenUsage;
         if (!tokenUsage) {
             return res.status(400).json({ error: 'Token usage not initialized' });
+        }
+
+        // First check if subscription has expired
+        const expiredTokenUsage = await checkSubscriptionExpiry(req.user.uid, tokenUsage, ctx);
+        if (expiredTokenUsage) {
+            // Update Firestore with expired subscription data
+            await db.collection('users').doc(req.user.uid).update({
+                tokenUsage: expiredTokenUsage,
+                updatedAt: new Date().toISOString()
+            });
+            tokenUsage = expiredTokenUsage;
+        }
+
+        // Then check if tokens need to be reset (monthly refresh)
+        const resetTokenUsage = await checkAndResetTokens(req.user.uid, ctx);
+        if (resetTokenUsage) {
+            tokenUsage = resetTokenUsage;
         }
 
         // Check if user has tokens available

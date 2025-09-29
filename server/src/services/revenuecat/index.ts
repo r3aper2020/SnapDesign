@@ -267,7 +267,6 @@ const revenueCatService: ServiceModule = {
 
   async init(ctx: ServiceContext) {
     revenueCatConfig = getRevenueCatConfig();
-    serviceContext = ctx;
 
     ctx.logger.info('Initializing RevenueCat service', {
       hasConfig: !!revenueCatConfig,
@@ -352,15 +351,11 @@ const revenueCatService: ServiceModule = {
             tokenRequestCount: DEFAULT_CREATOR_TOKENS,
             subscriptionTier: SubscriptionTier.CREATOR,
             lastReset: now.toISOString(),
-            nextReset: expiryDate.toISOString()
+            nextReset: expiryDate.toISOString(),
+            subscriptionEndDate: expiryDate.toISOString()
           };
 
           await db.collection('users').doc(userId).update({
-            'subscription': {
-              tier: SubscriptionTier.CREATOR,
-              tokensRemaining: DEFAULT_CREATOR_TOKENS,
-              subscriptionEndDate: expiryDate.toISOString()
-            },
             'tokenUsage': tokenUsage,
             updatedAt: now.toISOString()
           });
@@ -567,43 +562,6 @@ const revenueCatService: ServiceModule = {
   }
 };
 
-// Check and update expired subscriptions
-async function checkAndUpdateExpiredSubscriptions(ctx: ServiceContext): Promise<void> {
-  try {
-    const db = admin.firestore();
-    const now = new Date();
-
-    // Find users with expired subscriptions
-    const expiredSubs = await db.collection('users')
-      .where('subscription.subscriptionEndDate', '<=', now.toISOString())
-      .where('subscription.tier', 'in', [SubscriptionTier.CREATOR, SubscriptionTier.PROFESSIONAL])
-      .get();
-
-    // Update each expired subscription to free tier
-    const batch = db.batch();
-    expiredSubs.docs.forEach(doc => {
-      batch.update(doc.ref, {
-        'subscription.tier': SubscriptionTier.FREE,
-        'subscription.tokensRemaining': getTokensForTier(SubscriptionTier.FREE),
-        'subscription.subscriptionEndDate': null,
-        'tokenUsage': {
-          tokenRequestCount: getTokensForTier(SubscriptionTier.FREE),
-          subscriptionTier: SubscriptionTier.FREE,
-          lastReset: now.toISOString(),
-          nextReset: null
-        },
-        updatedAt: now.toISOString()
-      });
-    });
-
-    await batch.commit();
-    ctx.logger.info('Updated expired subscriptions', { count: expiredSubs.size });
-  } catch (error) {
-    ctx.logger.error('Failed to update expired subscriptions', error);
-    throw error;
-  }
-}
-
 // Initialize Firebase Admin SDK
 function initializeFirebaseAdmin(ctx: ServiceContext) {
   if (!admin.apps.length) {
@@ -620,17 +578,5 @@ function initializeFirebaseAdmin(ctx: ServiceContext) {
     ctx.logger.info('Firebase Admin SDK initialized');
   }
 }
-
-let serviceContext: ServiceContext;
-
-// Schedule expired subscription check (every hour)
-setInterval(() => {
-  if (revenueCatConfig && serviceContext) {
-    checkAndUpdateExpiredSubscriptions(serviceContext)
-      .catch(error => {
-        console.error('Failed to check expired subscriptions:', error);
-      });
-  }
-}, 60 * 60 * 1000); // 1 hour
 
 export default revenueCatService;
