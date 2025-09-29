@@ -34,6 +34,7 @@ import {
 } from '../components';
 import { useDesignForm } from '../hooks/useDesignForm';
 
+// Get screen dimensions for styles
 const { width, height } = Dimensions.get('window');
 
 // ============================================================================
@@ -49,14 +50,6 @@ interface DesignScreenProps {
 // MAIN COMPONENT
 // ============================================================================
 export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
-  console.log('DesignScreen loaded');
-
-  useEffect(() => {
-    console.log('DesignScreen mounted');
-    return () => {
-      console.log('DesignScreen unmounted');
-    };
-  }, []);
 
   // ============================================================================
   // STATE & HOOKS
@@ -72,9 +65,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
   // Custom hooks
   const formState = useDesignForm();
-
-  // Get screen dimensions
-  const { width, height } = Dimensions.get('window');
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(1)).current;

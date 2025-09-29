@@ -103,6 +103,12 @@ export async function checkTokenUsage(
         // Then check if tokens need to be reset (monthly refresh)
         const resetTokenUsage = await checkAndResetTokens(req.user.uid, ctx);
         if (resetTokenUsage) {
+            // Update Firestore with reset token data
+            await db.collection('users').doc(req.user.uid).update({
+                tokenUsage: resetTokenUsage,
+                updatedAt: new Date().toISOString()
+
+            });
             tokenUsage = resetTokenUsage;
         }
 

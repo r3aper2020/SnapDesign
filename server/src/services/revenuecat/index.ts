@@ -21,6 +21,7 @@ interface TokenUsage {
   subscriptionTier: SubscriptionTier;
   lastReset: string;
   nextReset: string | null;
+  subscriptionEndDate?: string | null;
 }
 
 export async function checkAndResetTokens(
@@ -67,11 +68,15 @@ export async function checkAndResetTokens(
   }
 
   // Reset tokens based on tier
+  const nextResetDate = new Date(now);
+  nextResetDate.setMonth(nextResetDate.getMonth() + 1);
+
   const newTokenUsage: TokenUsage = {
     tokenRequestCount: getTokensForTier(tier),
     subscriptionTier: tier,
     lastReset: now.toISOString(),
-    nextReset: subscriptionEndDate
+    nextReset: nextResetDate.toISOString(),
+    subscriptionEndDate  // Keep track of subscription end date separately
   };
 
   await db.collection('users').doc(userId).update({
