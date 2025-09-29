@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,13 @@ import {
   Linking,
   Image,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../contexts/AuthContext';
+import { subscriptionService } from '../services/SubscriptionService';
+import { SubscriptionSheet } from '../components/SubscriptionSheet';
+import { SubscriptionTier } from '../types/subscription';
 
 // Professional Icon Components
 const SettingsIcon = ({ size = 24, color = '#666' }) => (
@@ -142,15 +146,76 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
   const { theme, isDark, toggleTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [showSubscriptionSheet, setShowSubscriptionSheet] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<{
+    tier: SubscriptionTier;
+    isActive: boolean;
+  } | null>(null);
+
+  const fetchSubscriptionStatus = useCallback(async () => {
+    if (!isAuthenticated || !user) return;
+    try {
+      const status = await subscriptionService.getStatus();
+      setSubscriptionStatus({
+        tier: status.tier,
+        isActive: status.isActive
+      });
+    } catch (error) {
+      console.error('Failed to fetch subscription status:', error);
+    }
+  }, [isAuthenticated, user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchSubscriptionStatus();
+    }, [fetchSubscriptionStatus])
+  );
 
   const handleBillingPress = () => {
-    Alert.alert(
-      'Billing Management',
-      'Billing management will be available soon. This will integrate with Google Play and App Store subscription APIs.',
-      [
-        { text: 'OK', style: 'default' }
-      ]
-    );
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Sign In Required',
+        'Please sign in to manage your subscription.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: handleLoginPress }
+        ]
+      );
+      return;
+    }
+
+    if (subscriptionStatus?.isActive) {
+      Alert.alert(
+        'Manage Subscription',
+        'What would you like to do?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Change Plan', onPress: () => setShowSubscriptionSheet(true) },
+          {
+            text: 'Cancel Subscription',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await subscriptionService.cancelSubscription();
+                await fetchSubscriptionStatus();
+                Alert.alert(
+                  'Subscription Cancelled',
+                  'Your subscription has been cancelled. You can continue using your remaining tokens until your next reset.'
+                );
+              } catch (error) {
+                console.error('Failed to cancel subscription:', error);
+                Alert.alert(
+                  'Error',
+                  'Failed to cancel subscription. Please try again later.'
+                );
+              }
+            }
+          }
+        ]
+      );
+    } else {
+      setShowSubscriptionSheet(true);
+    }
   };
 
   const handleSupportPress = () => {
@@ -189,8 +254,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
       'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
+        {
+          text: 'Sign Out',
           style: 'destructive',
           onPress: logout
         }
@@ -210,19 +275,47 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
     }
   };
 
+  const handleSubscriptionUpdate = async () => {
+    await fetchSubscriptionStatus();
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+      {/* Subscription Sheet Modal */}
+      <SubscriptionSheet
+        visible={showSubscriptionSheet}
+        onClose={() => setShowSubscriptionSheet(false)}
+        onSuccess={handleSubscriptionUpdate}
+        currentTier={subscriptionStatus?.tier}
+        onCancelSubscription={async () => {
+          try {
+            await subscriptionService.cancelSubscription();
+            await fetchSubscriptionStatus();
+            setShowSubscriptionSheet(false);
+            Alert.alert(
+              'Subscription Cancelled',
+              'Your subscription has been cancelled. You can continue using your remaining tokens until your next reset.'
+            );
+          } catch (error) {
+            console.error('Failed to cancel subscription:', error);
+            Alert.alert(
+              'Error',
+              'Failed to cancel subscription. Please try again later.'
+            );
+          }
+        }}
+      />
       {/* Background Image */}
-      <Image 
-        source={require('../../assets/background.png')} 
+      <Image
+        source={require('../../assets/background.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
       />
       {/* Fixed Header */}
       <View style={[styles.fixedHeader, { backgroundColor: 'transparent' }]}>
         <View style={styles.headerContent}>
-          <Image 
-            source={require('../../assets/re-vibe.png')} 
+          <Image
+            source={require('../../assets/re-vibe.png')}
             style={styles.logo}
             resizeMode="contain"
           />
@@ -234,8 +327,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           </Text>
         </View>
       </View>
-      
-      <ScrollView 
+
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -250,7 +343,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.settingItem}>
             <View style={styles.settingContent}>
               <Text style={[styles.settingLabel, { color: theme.colors.text.primary }]}>
@@ -279,7 +372,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.settingItem}>
             <View style={styles.settingContent}>
               <Text style={[styles.settingLabel, { color: theme.colors.text.primary }]}>
@@ -308,8 +401,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
               </Text>
             </View>
           </View>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={handleBillingPress}
           >
@@ -318,7 +411,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                 Manage Subscription
               </Text>
               <Text style={[styles.settingDescription, { color: theme.colors.text.secondary }]}>
-                View and manage your subscription
+                {subscriptionStatus?.isActive
+                  ? `Active ${subscriptionStatus.tier.toLowerCase()} subscription`
+                  : 'Subscribe to get more tokens'}
               </Text>
             </View>
             <Text style={[styles.chevron, { color: theme.colors.text.secondary }]}>
@@ -337,7 +432,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
               </Text>
             </View>
           </View>
-          
+
           {isAuthenticated && user ? (
             <>
               <View style={styles.settingItem}>
@@ -351,7 +446,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                 </View>
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.settingItem}
                 onPress={handleLogout}
               >
@@ -370,7 +465,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             </>
           ) : (
             <>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.settingItem}
                 onPress={handleLoginPress}
               >
@@ -387,7 +482,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.settingItem}
                 onPress={handleSignupPress}
               >
@@ -417,8 +512,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
               </Text>
             </View>
           </View>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={handleSupportPress}
           >
@@ -435,7 +530,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={handlePrivacyPress}
           >
@@ -452,7 +547,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={handleTermsPress}
           >
