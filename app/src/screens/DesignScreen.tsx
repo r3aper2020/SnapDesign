@@ -25,7 +25,7 @@ import { endpoints } from '../config/api';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
-import { makeAuthenticatedRequest } from '../services/ApiService';
+import { apiService } from '../services';
 import {
   ImagePreview,
   InspirationModal,
@@ -66,7 +66,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
   const [isInspirationModalVisible, setIsInspirationModalVisible] = useState(false);
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
-  const [tokenResetDate, setTokenResetDate] = useState<Date | null>(null);
+  const [userSubscribed, setUserSubscribed] = useState<boolean | null>(null);
 
   // Local state for image (more reliable than hook state)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
@@ -238,12 +238,9 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
     try {
       // Health check with authentication
       try {
-        const healthResponse = await makeAuthenticatedRequest(endpoints.health());
-        if (!healthResponse.ok) {
-          throw new Error('Server not responding');
-        }
+        await apiService.get(endpoints.health());
       } catch (healthError: any) {
-        if (healthError.message === 'No authentication tokens found' || healthError.message === 'Authentication failed') {
+        if (healthError.status === 401) {
           throw new Error('Please log in to continue');
         }
         throw new Error('Cannot connect to the design server. Please check your internet connection and try again.');
@@ -291,45 +288,24 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         mimeType: 'image/jpeg'
       };
 
-      const response = await makeAuthenticatedRequest(endpoints.decorate(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      // Get token information from headers
-      const tokensRemaining = response.headers.get('X-Tokens-Remaining');
-      const tokenResetDate = response.headers.get('X-Tokens-Reset-Date');
-
-      // Update token info in state
-      if (tokensRemaining) {
-        setTokensRemaining(parseInt(tokensRemaining));
-      }
-      if (tokenResetDate) {
-        setTokenResetDate(new Date(tokenResetDate));
+      interface DecorateResponse {
+        editedImageBase64: string;
+        products: {
+          items?: any[];
+        } | any[];
+        tokenUsage?: {
+          tokenRequestCount: number;
+          subscribed: boolean;
+        };
       }
 
-      if (!response.ok) {
-        let errorMessage = `HTTP error! status: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          if (response.status === 429 && errorData.nextUpdate) {
-            // Token limit reached
-            setTokensRemaining(0);
-            setTokenResetDate(new Date(errorData.nextUpdate));
-            errorMessage = 'Token limit reached. Please wait for next reset.';
-          } else {
-            errorMessage = errorData.error || errorMessage;
-          }
-        } catch (e) {
-          // Could not parse error response
-        }
-        throw new Error(errorMessage);
-      }
+      const data = await apiService.post<DecorateResponse>(endpoints.decorate(), requestBody);
 
-      const data = await response.json();
+      // Update token info
+      if (data.tokenUsage) {
+        setTokensRemaining(data.tokenUsage.tokenRequestCount);
+        setUserSubscribed(data.tokenUsage.subscribed);
+      }
 
       if (data.editedImageBase64 && data.products) {
         // Fast-track progress bar to completion
@@ -348,8 +324,14 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             originalImage: imageBase64,
             generatedImage: data.editedImageBase64,
             serviceType: 'design',
-            products: data.products.items || data.products,
-            tokenUsage: data.tokenUsage
+            products: Array.isArray(data.products) ? data.products : (data.products.items || []),
+            tokenUsage: data.tokenUsage ? {
+              imageGeneration: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+              textAnalysis: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+              grandTotal: 0,
+              inputTokensTotal: 0,
+              outputTokensTotal: 0
+            } : undefined
           });
         } catch (saveError) {
           console.error('Error saving design:', saveError);
@@ -358,7 +340,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
         navigation.navigate('Result', {
           generatedImage: data.editedImageBase64,
           originalImage: imageBase64,
-          products: data.products.items || data.products,
+          products: Array.isArray(data.products) ? data.products : (data.products.items || []),
           description: formState.description.trim(),
           serviceType: 'design'
         });
@@ -778,7 +760,7 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
             {/* Token Banner */}
             <TokenBanner
               tokensRemaining={tokensRemaining}
-              tokenResetDate={tokenResetDate}
+              userSubscribed={userSubscribed}
             />
 
             {/* Page Header */}

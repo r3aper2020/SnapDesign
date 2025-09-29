@@ -4,34 +4,27 @@ import { useTheme } from '../theme/ThemeProvider';
 
 interface TokenBannerProps {
     tokensRemaining: number | null;
-    tokenResetDate: Date | null;
+    userSubscribed?: boolean | null;
     style?: any;
 }
 
 export const TokenBanner: React.FC<TokenBannerProps> = ({
     tokensRemaining,
-    tokenResetDate,
+    userSubscribed,
     style
 }) => {
     const { theme } = useTheme();
 
-    if (!tokensRemaining && !tokenResetDate) return null;
+    if (userSubscribed) return null; // Don't show banner for subscribed users
+    if (tokensRemaining === null) return null;
 
     const isOutOfTokens = tokensRemaining === 0;
     const bannerStyle = isOutOfTokens ? styles.errorBanner : styles.infoBanner;
     const textColor = isOutOfTokens ? '#FF453A' : theme.colors.text.primary;
 
-    let message = '';
-    if (isOutOfTokens && tokenResetDate) {
-        const formattedDate = tokenResetDate.toLocaleDateString(undefined, {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-        });
-        message = `Out of tokens. Next reset: ${formattedDate}`;
-    } else if (tokensRemaining !== null) {
-        message = `${tokensRemaining} design tokens remaining`;
-    }
+    const message = isOutOfTokens
+        ? 'Out of tokens. Subscribe to continue.'
+        : `${tokensRemaining} design tokens remaining`;
 
     return (
         <View style={[bannerStyle, style]}>

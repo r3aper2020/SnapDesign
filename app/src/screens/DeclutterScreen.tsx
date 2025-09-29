@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import type { JSX } from 'react';
 import {
   View,
   Text,
@@ -8,7 +9,6 @@ import {
   ActivityIndicator,
   SafeAreaView,
   ScrollView,
-  TextInput,
   Dimensions,
   StyleSheet,
   KeyboardAvoidingView,
@@ -22,12 +22,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../theme/ThemeProvider';
 import { endpoints } from '../config/api';
-import { makeAuthenticatedRequest } from '../services/ApiService';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
+import { apiService } from '../services';
+import { DecorateResponse } from '../types/api';
 import {
-  ImagePreview,
   ErrorDisplay,
   TokenBanner,
 } from '../components';
@@ -47,14 +47,14 @@ interface DeclutterScreenProps {
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
-export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) => {
+export const DeclutterScreen = ({ navigation }: DeclutterScreenProps) => {
   // ============================================================================
   // STATE & HOOKS
   // ============================================================================
   const { theme } = useTheme();
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
   const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
-  const [tokenResetDate, setTokenResetDate] = useState<Date | null>(null);
+  const [userSubscribed, setUserSubscribed] = useState<boolean | null>(null);
 
   // Local state for image (more reliable than hook state)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
@@ -77,15 +77,15 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
   // ============================================================================
   // EVENT HANDLERS
   // ============================================================================
-  const openImageModal = useCallback(() => {
+  const openImageModal = useCallback(function openImageModal(): void {
     setIsImageModalVisible(true);
   }, []);
 
-  const closeImageModal = useCallback(() => {
+  const closeImageModal = useCallback(function closeImageModal(): void {
     setIsImageModalVisible(false);
   }, []);
 
-  const pickImage = useCallback(async () => {
+  const pickImage = useCallback(async function pickImage(): Promise<void> {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (status !== 'granted') {
@@ -120,7 +120,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
     }
   }, [formState]);
 
-  const takePhoto = useCallback(async () => {
+  const takePhoto = useCallback(async function takePhoto(): Promise<void> {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
 
     if (status !== 'granted') {
@@ -155,7 +155,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
     }
   }, [formState]);
 
-  const handleGenerateDeclutterPlan = useCallback(async () => {
+  const handleGenerateDeclutterPlan = useCallback(async function handleGenerateDeclutterPlan(): Promise<void> {
     // Validate that we have an image
     if (!formState.selectedImageUri && !localImageUri) {
       formState.setError('Please select an image first');
@@ -261,78 +261,68 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
         serviceType: 'declutter' // Add service type to distinguish from design
       };
 
-      const response = await makeAuthenticatedRequest(endpoints.decorate(), {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      });
 
-      // Get token information from headers
-      const tokensRemaining = response.headers.get('X-Tokens-Remaining');
-      const tokenResetDate = response.headers.get('X-Tokens-Reset-Date');
+      const data = await apiService.post<DecorateResponse>(endpoints.decorate(), requestBody);
 
-      // Update token info in state
-      if (tokensRemaining) {
-        setTokensRemaining(parseInt(tokensRemaining));
+      // Update token info from response headers
+      const tokensRemaining = data.tokenUsage?.tokenRequestCount;
+      const userSubscribed = data.tokenUsage?.subscribed;
+
+      if (typeof tokensRemaining === 'number') {
+        setTokensRemaining(tokensRemaining);
       }
-      if (tokenResetDate) {
-        setTokenResetDate(new Date(tokenResetDate));
+      if (typeof userSubscribed === 'boolean') {
+        setUserSubscribed(userSubscribed);
       }
 
-      if (!response.ok) {
-        let errorMessage = `HTTP error! status: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          if (response.status === 429 && errorData.nextUpdate) {
-            // Token limit reached
-            setTokensRemaining(0);
-            setTokenResetDate(new Date(errorData.nextUpdate));
-            errorMessage = 'Token limit reached. Please wait for next reset.';
-          } else {
-            errorMessage = errorData.error || errorMessage;
-          }
-        } catch (e) {
-          // Could not parse error response
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-
-      if (data.editedImageBase64 && data.cleaningSteps) {
-        // Fast-track progress bar to completion
-        Animated.timing(progressAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: false,
-        }).start();
-
-        // Small delay to let progress bar complete before navigation
-        await new Promise(resolve => setTimeout(resolve, 600));
-
-        try {
-          await designStorage.saveDesign({
-            description: "Clean and organize this cluttered space",
-            originalImage: imageBase64,
-            generatedImage: data.editedImageBase64,
-            serviceType: 'declutter',
-            cleaningSteps: data.cleaningSteps,
-            tokenUsage: data.tokenUsage
-          });
-        } catch (saveError) {
-          console.error('Error saving declutter plan:', saveError);
-        }
-
-        navigation.navigate('Result', {
-          generatedImage: data.editedImageBase64,
-          originalImage: imageBase64,
-          cleaningSteps: data.cleaningSteps,
-          description: "Clean and organize this cluttered space",
-          serviceType: 'declutter'
-        });
-      } else {
+      if (!data.editedImageBase64 || !data.cleaningSteps) {
         throw new Error('The decluttering server returned an unexpected response. Please try again.');
       }
 
+      // Fast-track progress bar to completion
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: false,
+      }).start();
+
+      // Small delay to let progress bar complete before navigation
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      try {
+        await designStorage.saveDesign({
+          description: "Clean and organize this cluttered space",
+          originalImage: imageBase64,
+          generatedImage: data.editedImageBase64,
+          serviceType: 'declutter',
+          cleaningSteps: data.cleaningSteps,
+          tokenUsage: data.tokenUsage ? {
+            imageGeneration: {
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0
+            },
+            textAnalysis: {
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0
+            },
+            grandTotal: 0,
+            inputTokensTotal: 0,
+            outputTokensTotal: 0
+          } : undefined
+        });
+      } catch (saveError) {
+        console.error('Error saving declutter plan:', saveError);
+      }
+
+      navigation.navigate('Result', {
+        generatedImage: data.editedImageBase64,
+        originalImage: imageBase64,
+        cleaningSteps: data.cleaningSteps,
+        description: "Clean and organize this cluttered space",
+        serviceType: 'declutter'
+      });
     } catch (err: any) {
       formState.setError(err.message || 'Failed to generate decluttering plan');
 
@@ -353,7 +343,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
       setIsGenerating(false); // Reset local state
       formState.setIsGenerating(false);
     }
-  }, [formState, navigation, localImageUri, fadeAnim, loadingFadeAnim]);
+  }, [formState, navigation, localImageUri, fadeAnim, loadingFadeAnim, progressAnim, pulseAnim, theme]);
 
   // ============================================================================
   // RENDER FUNCTIONS
@@ -710,7 +700,7 @@ export const DeclutterScreen: React.FC<DeclutterScreenProps> = ({ navigation }) 
             {/* Token Banner */}
             <TokenBanner
               tokensRemaining={tokensRemaining}
-              tokenResetDate={tokenResetDate}
+              userSubscribed={userSubscribed}
             />
 
             {/* Page Header */}
