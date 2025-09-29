@@ -27,7 +27,6 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
 import { apiService } from '../services';
 import {
-  ImagePreview,
   InspirationModal,
   ErrorDisplay,
   SparkleIcon,
@@ -70,7 +69,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
   // Local state for image (more reliable than hook state)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
-  const [localImageRenderKey, setLocalImageRenderKey] = useState(0);
 
   // Custom hooks
   const formState = useDesignForm();
@@ -130,7 +128,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       // Set local state immediately for display
       if (asset.uri) {
         setLocalImageUri(asset.uri);
-        setLocalImageRenderKey(prev => prev + 1);
       }
 
       formState.setIsProcessingImage(true);
@@ -165,7 +162,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       // Set local state immediately for display
       if (asset.uri) {
         setLocalImageUri(asset.uri);
-        setLocalImageRenderKey(prev => prev + 1);
       }
 
       formState.setIsProcessingImage(true);

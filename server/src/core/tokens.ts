@@ -2,10 +2,11 @@ import type { Request, Response, NextFunction } from 'express';
 import type { ServiceContext } from './types';
 import * as admin from 'firebase-admin';
 import { FirebaseUser } from './auth';
+import { SubscriptionTier } from '../services/firebase/subscription';
 
 interface TokenUsage {
     tokenRequestCount: number;
-    subscribed: boolean;
+    subscriptionTier: SubscriptionTier;
 }
 
 const FREE_TOKENS = 10;
@@ -36,36 +37,31 @@ export async function checkTokenUsage(
         const now = new Date();
         let tokenUsage: TokenUsage = {
             tokenRequestCount: FREE_TOKENS,
-            subscribed: false
+            subscriptionTier: SubscriptionTier.FREE
         };
 
-        // If user has existing token usage data
-
-
         // Check if user has tokens available
-        if ((tokenUsage.tokenRequestCount <= 0) && (!tokenUsage.subscribed)) {
+        if (tokenUsage.tokenRequestCount <= 0) {
             return res.status(429).json({
                 error: 'Token limit reached',
-                subscribed: tokenUsage.subscribed
+                subscriptionTier: tokenUsage.subscriptionTier
             });
         }
 
         // Decrement free tokens if not subscribed
-        if (!tokenUsage.subscribed) {
-            tokenUsage.tokenRequestCount--;
-        }
+        tokenUsage.tokenRequestCount--;
 
         // Update Firestore with new token count
         await db.collection('users').doc(req.user.uid).update({
             tokenUsage: {
                 tokenRequestCount: tokenUsage.tokenRequestCount,
-                subscribed: tokenUsage.subscribed
+                subscriptionTier: tokenUsage.subscriptionTier
             }
         });
 
         // Add token usage info to response headers
         res.setHeader('X-Tokens-Remaining', tokenUsage.tokenRequestCount);
-        res.setHeader('X-Tokens-Subscribed', tokenUsage.subscribed.toString());
+        res.setHeader('X-Tokens-Subscribed', tokenUsage.subscriptionTier.toString());
 
         next();
     } catch (error) {

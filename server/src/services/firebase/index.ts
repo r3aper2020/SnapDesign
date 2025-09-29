@@ -1,5 +1,6 @@
 import type { Express, Request, Response, NextFunction } from 'express';
 import type { ServiceModule, ServiceContext } from '../../core/types';
+import { SubscriptionTier, DEFAULT_FREE_TOKENS, DEFAULT_CREATOR_TOKENS, DEFAULT_PROFESSIONAL_TOKENS } from './subscription';
 import path from 'path';
 import dotenv from 'dotenv';
 import { verifyFirebaseToken } from '../../core/auth';
@@ -142,8 +143,8 @@ const firebaseService: ServiceModule = {
 
         // Initialize user document with token usage in Firestore
         let tokenUsage = {
-          tokenRequestCount: 10,
-          subscribed: false
+          tokenRequestCount: DEFAULT_FREE_TOKENS,
+          subscriptionTier: SubscriptionTier.FREE
         };
 
         try {
@@ -181,7 +182,7 @@ const firebaseService: ServiceModule = {
           refreshToken: authData.refreshToken,
           tokens: {
             remaining: tokenUsage.tokenRequestCount,
-            subscribed: tokenUsage.subscribed
+            subscriptionTier: tokenUsage.subscriptionTier
           }
         });
       } catch (err) {
@@ -234,8 +235,8 @@ const firebaseService: ServiceModule = {
         const userDoc = await db.collection('users').doc(data.localId).get();
         const userData = userDoc.data();
         const tokenUsage = userData?.tokenUsage || {
-          tokenRequestCount: 10,
-          subscribed: false
+          tokenRequestCount: DEFAULT_FREE_TOKENS,
+          subscriptionTier: SubscriptionTier.FREE
         };
 
         res.json({
@@ -246,7 +247,7 @@ const firebaseService: ServiceModule = {
           refreshToken: data.refreshToken,
           tokens: {
             remaining: tokenUsage.tokenRequestCount,
-            subscribed: tokenUsage.subscribed
+            subscriptionTier: tokenUsage.subscriptionTier
           }
         });
       } catch (err) {
@@ -346,8 +347,8 @@ const firebaseService: ServiceModule = {
 
         const userData = userDoc.data();
         const tokenUsage = userData?.tokenUsage || {
-          tokenRequestCount: 10,
-          subscribed: false
+          tokenRequestCount: DEFAULT_FREE_TOKENS,
+          subscriptionTier: SubscriptionTier.FREE
         };
 
         res.json({
@@ -357,7 +358,7 @@ const firebaseService: ServiceModule = {
           emailVerified: user.emailVerified === 'true',
           tokens: {
             remaining: tokenUsage.tokenRequestCount,
-            subscribed: tokenUsage.subscribed
+            subscriptionTier: tokenUsage.subscriptionTier
           }
         });
       } catch (err) {
@@ -450,8 +451,8 @@ const firebaseService: ServiceModule = {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           tokenUsage: {
-            tokenRequestCount: 10,
-            subscribed: false
+            tokenRequestCount: DEFAULT_FREE_TOKENS,
+            subscriptionTier: SubscriptionTier.FREE
           }
         });
 

@@ -9,3 +9,4 @@ export { SavedDesignsScreen } from './SavedDesignsScreen';
 export { SettingsScreen } from './SettingsScreen';
 export { LoginScreen } from './LoginScreen';
 export { SignupScreen } from './SignupScreen';
+export { ManageSubscriptionScreen } from './ManageSubscriptionScreen';

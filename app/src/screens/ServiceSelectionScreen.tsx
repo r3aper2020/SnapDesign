@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { TokenBanner } from '../components';
+import { TokenBanner, SubscriptionSheet } from '../components';
 import { apiService } from '../services';
 import { endpoints } from '../config/api';
 
@@ -310,9 +310,12 @@ const serviceOptions = [
 export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ navigation }) => {
   const { theme } = useTheme();
 
-  // State for token usage
+  // State for token usage and subscription modal
   const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
   const [userSubscribed, setUserSubscribed] = useState<boolean | null>(null);
+  const [isSubscriptionModalVisible, setIsSubscriptionModalVisible] = useState(false);
+  const [pendingServiceId, setPendingServiceId] = useState<string | null>(null);
+  const [showBanner, setShowBanner] = useState(true);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -360,33 +363,62 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
       }
     };
 
+    // Reset banner visibility and fetch token usage when screen mounts
+    setShowBanner(true);
     fetchTokenUsage();
   }, []);
 
   const handleServiceSelect = (serviceId: string) => {
     console.log('Service selected:', serviceId);
-    switch (serviceId) {
-      case 'design':
-        console.log('Navigating to Design screen...');
-        try {
-          // Navigate to the Design screen using the parent navigator
-          navigation.getParent()?.navigate('Design');
-          console.log('Navigation command sent successfully');
-        } catch (error) {
-          console.error('Navigation error:', error);
-        }
-        break;
-      case 'declutter':
-        console.log('Navigating to Declutter screen...');
-        navigation.getParent()?.navigate('Declutter');
-        break;
-      case 'makeover':
-        console.log('Navigating to Makeover screen...');
-        navigation.getParent()?.navigate('Makeover');
-        break;
-      default:
-        console.log('Unknown service selected');
+
+    // Check if user has tokens or is subscribed
+    if (!userSubscribed && (tokensRemaining === 0 || tokensRemaining === null)) {
+      setPendingServiceId(serviceId);
+      setIsSubscriptionModalVisible(true);
+      return;
     }
+
+    navigateToService(serviceId);
+  };
+
+  const navigateToService = (serviceId: string) => {
+    try {
+      switch (serviceId) {
+        case 'design':
+          navigation.getParent()?.navigate('Design');
+          break;
+        case 'declutter':
+          navigation.getParent()?.navigate('Declutter');
+          break;
+        case 'makeover':
+          navigation.getParent()?.navigate('Makeover');
+          break;
+        default:
+          console.log('Unknown service selected');
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  };
+
+  const handleSubscribeSuccess = async () => {
+    // Refresh token usage after successful subscription
+    try {
+      interface AuthMeResponse {
+        tokens: {
+          remaining: number;
+          subscribed: boolean;
+        };
+      }
+      const response = await apiService.get<AuthMeResponse>(endpoints.auth.me());
+      if (response.tokens) {
+        setTokensRemaining(response.tokens.remaining);
+        setUserSubscribed(response.tokens.subscribed);
+      }
+    } catch (error) {
+      console.error('Failed to refresh token usage:', error);
+    }
+    setIsSubscriptionModalVisible(false);
   };
 
   const renderServiceCard = (service: typeof serviceOptions[0], index: number) => (
@@ -466,6 +498,15 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
         <TokenBanner
           tokensRemaining={tokensRemaining}
           userSubscribed={userSubscribed}
+          shouldShow={showBanner}
+          onSubscribe={() => setIsSubscriptionModalVisible(true)}
+        />
+
+        {/* Subscription Sheet */}
+        <SubscriptionSheet
+          visible={isSubscriptionModalVisible}
+          onClose={() => setIsSubscriptionModalVisible(false)}
+          onSuccess={handleSubscribeSuccess}
         />
 
         {/* Header Section */}
