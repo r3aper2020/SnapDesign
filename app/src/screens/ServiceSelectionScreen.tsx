@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { TokenBanner, SubscriptionSheet } from '../components';
 import { apiService } from '../services';
@@ -344,29 +345,31 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
     ]).start();
   }, []);
 
-  useEffect(() => {
-    const fetchTokenUsage = async () => {
-      try {
-        interface AuthMeResponse {
-          tokens: {
-            remaining: number;
-            subscribed: boolean;
-          };
-        }
-        const response = await apiService.get<AuthMeResponse>(endpoints.auth.me());
-        if (response.tokens) {
-          setTokensRemaining(response.tokens.remaining);
-          setUserSubscribed(response.tokens.subscribed);
-        }
-      } catch (error) {
-        console.error('Failed to fetch token usage:', error);
+  const fetchTokenUsage = async () => {
+    try {
+      interface AuthMeResponse {
+        tokens: {
+          remaining: number;
+          subscribed: boolean;
+        };
       }
-    };
+      const response = await apiService.get<AuthMeResponse>(endpoints.auth.me());
+      if (response.tokens) {
+        setTokensRemaining(response.tokens.remaining);
+        setUserSubscribed(response.tokens.subscribed);
+      }
+    } catch (error) {
+      console.error('Failed to fetch token usage:', error);
+    }
+  };
 
-    // Reset banner visibility and fetch token usage when screen mounts
-    setShowBanner(true);
-    fetchTokenUsage();
-  }, []);
+  // Fetch token usage when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      setShowBanner(true);
+      fetchTokenUsage();
+    }, [])
+  );
 
   const handleServiceSelect = (serviceId: string) => {
     console.log('Service selected:', serviceId);
@@ -507,6 +510,7 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
           visible={isSubscriptionModalVisible}
           onClose={() => setIsSubscriptionModalVisible(false)}
           onSuccess={handleSubscribeSuccess}
+          tokensRemaining={tokensRemaining || 0}
         />
 
         {/* Header Section */}

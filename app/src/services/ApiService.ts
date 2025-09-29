@@ -28,7 +28,11 @@ class ApiService {
 
     private async getAuthHeader(): Promise<string | null> {
         const tokens = await tokenStorage.getTokens();
-        return tokens ? `Bearer ${tokens.idToken}` : null;
+        if (!tokens || !tokens.idToken) {
+            console.warn('No auth tokens found');
+            return null;
+        }
+        return `Bearer ${tokens.idToken}`;
     }
 
     private async refreshToken(): Promise<boolean> {
@@ -84,11 +88,14 @@ class ApiService {
         // Add auth header if needed
         if (!skipAuth) {
             const authHeader = await this.getAuthHeader();
+            console.log('Auth header:', authHeader ? 'present' : 'missing');
             if (authHeader) {
                 fetchOptions.headers = {
                     ...fetchOptions.headers,
                     'Authorization': authHeader,
                 };
+            } else {
+                console.warn('Making authenticated request without auth header');
             }
         }
 

@@ -220,33 +220,32 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               </Text>
               <TokenBanner
                 tokensRemaining={tokensRemaining}
-                tokenResetDate={tokenResetDate}
                 style={{ marginTop: 12, marginHorizontal: 0 }}
               />
             </Animated.View>
           )}
 
-          {/* Main CTA */}
-          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-            <TouchableOpacity
-              style={styles.heroCTA}
-              onPress={handleStartDesign}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={theme.colors.gradient.primary}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.heroCTAGradient}
+          {/* Main CTA - Only show for authenticated users */}
+          {isAuthenticated && (
+            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+              <TouchableOpacity
+                style={styles.heroCTA}
+                onPress={handleStartDesign}
+                activeOpacity={0.8}
               >
-                <CameraIcon size={24} color="#FFFFFF" />
-                <Text style={styles.heroCTAText}>
-                  {isAuthenticated ? 'Start Designing' : 'Get Started Free'}
-                </Text>
-                <SparkleIcon size={20} color="#FFFFFF" />
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
+                <LinearGradient
+                  colors={theme.colors.gradient.primary}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.heroCTAGradient}
+                >
+                  <CameraIcon size={24} color="#FFFFFF" />
+                  <Text style={styles.heroCTAText}>Start Designing</Text>
+                  <SparkleIcon size={20} color="#FFFFFF" />
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
 
           {/* Auth Buttons for non-authenticated users */}
           {!isAuthenticated && (

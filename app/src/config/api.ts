@@ -24,7 +24,7 @@ export const endpoints = {
   },
   // Subscription endpoints
   subscription: {
-    update: (): string => `${API_BASE_URL}/subscription/update`,
-    status: (): string => `${API_BASE_URL}/subscription/status`,
+    update: (): string => `${API_BASE_URL}/revenuecat/subscriptions/update`,
+    status: (userId: string): string => `${API_BASE_URL}/revenuecat/subscribers/${userId}`,
   },
 };

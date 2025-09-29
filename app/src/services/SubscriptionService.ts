@@ -6,37 +6,103 @@ interface SubscriptionStatus {
     tier: SubscriptionTier;
     tokensRemaining: number;
     nextReset: string | null;
+    isActive: boolean;
+}
+
+interface RevenueCatSubscriber {
+    subscriber: {
+        subscriptions: {
+            [key: string]: {
+                expires_date: string;
+                product_identifier: string;
+            };
+        };
+    };
+    tier: SubscriptionTier;
+    active: boolean;
 }
 
 class SubscriptionService {
+    private static instance: SubscriptionService;
+    private userId: string | null = null;
+
+    private constructor() { }
+
+    public static getInstance(): SubscriptionService {
+        if (!SubscriptionService.instance) {
+            SubscriptionService.instance = new SubscriptionService();
+        }
+        return SubscriptionService.instance;
+    }
+
+    public setUserId(userId: string) {
+        this.userId = userId;
+    }
+
     public async getStatus(): Promise<SubscriptionStatus> {
         try {
-            const response = await apiService.get<{
+            if (!this.userId) {
+                throw new Error('User ID not set');
+            }
+
+            const response = await apiService.get<RevenueCatSubscriber>(
+                endpoints.subscription.status(this.userId)
+            );
+
+            // Get token usage from auth/me endpoint
+            const authResponse = await apiService.get<{
                 tokenUsage: {
-                    subscriptionTier: SubscriptionTier;
                     tokenRequestCount: number;
                     nextReset: string | null;
                 };
-            }>(endpoints.subscription.status());
+            }>(endpoints.auth.me());
 
             return {
-                tier: response.tokenUsage.subscriptionTier,
-                tokensRemaining: response.tokenUsage.tokenRequestCount,
-                nextReset: response.tokenUsage.nextReset
+                tier: response.tier,
+                tokensRemaining: authResponse.tokenUsage.tokenRequestCount,
+                nextReset: authResponse.tokenUsage.nextReset,
+                isActive: response.active
             };
         } catch (error) {
             console.error('Failed to get subscription status:', error);
             return {
                 tier: SubscriptionTier.FREE,
                 tokensRemaining: 10,
-                nextReset: null
+                nextReset: null,
+                isActive: false
             };
         }
     }
 
-    public async updateSubscription(tier: SubscriptionTier): Promise<void> {
+    // Product IDs must match exactly what's configured in RevenueCat
+    private readonly TIER_TO_PRODUCT: Record<SubscriptionTier, string> = {
+        [SubscriptionTier.FREE]: 'free_tier',
+        [SubscriptionTier.CREATOR]: 'creator_monthly',
+        [SubscriptionTier.PROFESSIONAL]: 'professional_monthly'
+    };
+
+    private getProductIdForTier(tier: SubscriptionTier): string {
+        const productId = this.TIER_TO_PRODUCT[tier];
+        if (!productId) {
+            throw new Error(`No product ID configured for tier: ${tier}`);
+        }
+        return productId;
+    }
+
+    public async updateSubscription(tierOrProductId: SubscriptionTier | string): Promise<void> {
         try {
-            await apiService.post(endpoints.subscription.update(), { tier });
+            if (!this.userId) {
+                throw new Error('User ID not set');
+            }
+
+            const productId = typeof tierOrProductId === 'string'
+                ? tierOrProductId
+                : this.getProductIdForTier(tierOrProductId);
+
+            await apiService.post(endpoints.subscription.update(), { productId });
+
+            // Refresh token usage after subscription update
+            await this.getStatus();
         } catch (error) {
             console.error('Failed to update subscription:', error);
             throw error;
@@ -45,7 +111,12 @@ class SubscriptionService {
 
     public async cancelSubscription(): Promise<void> {
         try {
-            await this.updateSubscription(SubscriptionTier.FREE);
+            if (!this.userId) {
+                throw new Error('User ID not set');
+            }
+
+            // Use a special product ID for cancellation
+            await this.updateSubscription('cancel');
         } catch (error) {
             console.error('Failed to cancel subscription:', error);
             throw error;
@@ -53,4 +124,4 @@ class SubscriptionService {
     }
 }
 
-export const subscriptionService = new SubscriptionService();
+export const subscriptionService = SubscriptionService.getInstance();

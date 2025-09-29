@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from 'express';
 import type { ServiceModule, ServiceContext } from '../../core/types';
-import { SubscriptionTier, DEFAULT_FREE_TOKENS, DEFAULT_CREATOR_TOKENS, DEFAULT_PROFESSIONAL_TOKENS } from './subscription';
+import { SubscriptionTier, DEFAULT_FREE_TOKENS } from '../../services/revenuecat';
 import path from 'path';
 import dotenv from 'dotenv';
 import { verifyFirebaseToken } from '../../core/auth';
@@ -144,7 +144,9 @@ const firebaseService: ServiceModule = {
         // Initialize user document with token usage in Firestore
         let tokenUsage = {
           tokenRequestCount: DEFAULT_FREE_TOKENS,
-          subscriptionTier: SubscriptionTier.FREE
+          subscriptionTier: SubscriptionTier.FREE,
+          lastReset: new Date().toISOString(),
+          nextReset: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
         };
 
         try {
@@ -182,7 +184,9 @@ const firebaseService: ServiceModule = {
           refreshToken: authData.refreshToken,
           tokens: {
             remaining: tokenUsage.tokenRequestCount,
-            subscriptionTier: tokenUsage.subscriptionTier
+            subscriptionTier: tokenUsage.subscriptionTier,
+            lastReset: tokenUsage.lastReset,
+            nextReset: tokenUsage.nextReset
           }
         });
       } catch (err) {
@@ -236,7 +240,9 @@ const firebaseService: ServiceModule = {
         const userData = userDoc.data();
         const tokenUsage = userData?.tokenUsage || {
           tokenRequestCount: DEFAULT_FREE_TOKENS,
-          subscriptionTier: SubscriptionTier.FREE
+          subscriptionTier: SubscriptionTier.FREE,
+          lastReset: new Date().toISOString(),
+          nextReset: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
         };
 
         res.json({
@@ -346,9 +352,12 @@ const firebaseService: ServiceModule = {
         const userDoc = await db.collection('users').doc(user.localId).get();
 
         const userData = userDoc.data();
+        const now = new Date();
         const tokenUsage = userData?.tokenUsage || {
           tokenRequestCount: DEFAULT_FREE_TOKENS,
-          subscriptionTier: SubscriptionTier.FREE
+          subscriptionTier: SubscriptionTier.FREE,
+          lastReset: now.toISOString(),
+          nextReset: new Date(now.setMonth(now.getMonth() + 1)).toISOString()
         };
 
         res.json({
@@ -358,7 +367,9 @@ const firebaseService: ServiceModule = {
           emailVerified: user.emailVerified === 'true',
           tokens: {
             remaining: tokenUsage.tokenRequestCount,
-            subscriptionTier: tokenUsage.subscriptionTier
+            subscriptionTier: tokenUsage.subscriptionTier,
+            lastReset: tokenUsage.lastReset,
+            nextReset: tokenUsage.nextReset
           }
         });
       } catch (err) {

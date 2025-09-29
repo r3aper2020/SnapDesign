@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiService } from '../services/ApiService';
 import { tokenStorage } from '../services/TokenStorage';
+import { subscriptionService } from '../services/SubscriptionService';
 import { FirestoreUser } from '../schemas/firestoreSchema';
 import { endpoints } from '../config/api';
 
@@ -10,7 +11,6 @@ export interface User {
   name: string;
   createdAt: string;
   emailVerified?: boolean;
-  firestoreUser?: FirestoreUser;
 }
 
 export interface AuthContextType {
@@ -29,6 +29,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+
+  // Update subscription service when user changes
+  useEffect(() => {
+    if (user) {
+      subscriptionService.setUserId(user.id);
+    }
+  }, [user]);
   const [isLoading, setIsLoading] = useState(true);
 
   const isAuthenticated = !!user;
@@ -48,8 +55,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (storedUser && storedTokens) {
         try {
           // Verify token is still valid by fetching user data from server
-          const userData = await apiService.get<User>(endpoints.auth.me());
-          setUser(userData);
+          try {
+            const userData = await apiService.get<any>(endpoints.auth.me());
+            if (!userData || !userData.uid) {
+              console.error('Invalid user data from auth/me:', userData);
+              throw new Error('Invalid user data');
+            }
+            const user: User = {
+              id: userData.uid,
+              email: userData.email,
+              name: userData.displayName || userData.email.split('@')[0],
+              createdAt: new Date().toISOString(),
+              emailVerified: userData.emailVerified
+            };
+            setUser(user);
+            subscriptionService.setUserId(user.id);
+          } catch (error) {
+            console.error('Failed to fetch user data:', error);
+            throw error;
+          }
         } catch (error) {
           // If token is invalid, clear storage
           await tokenStorage.clearAll();
@@ -82,8 +106,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         email: response.email,
         name: response.displayName || email.split('@')[0],
         createdAt: new Date().toISOString(),
-        emailVerified: response.emailVerified,
-        firestoreUser: response.firestoreUser,
+        emailVerified: response.emailVerified
       };
 
       await Promise.all([
@@ -130,8 +153,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         email: response.email,
         name: response.displayName || name,
         createdAt: new Date().toISOString(),
-        emailVerified: response.emailVerified,
-        firestoreUser: response.firestoreUser,
+        emailVerified: response.emailVerified
       };
 
       await Promise.all([
@@ -159,6 +181,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setUser(null);
       await tokenStorage.clearAll();
+      subscriptionService.setUserId(''); // Clear subscription service
     } catch (error) {
       console.error('Error during logout:', error);
     }
