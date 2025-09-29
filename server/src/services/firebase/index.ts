@@ -143,7 +143,7 @@ const firebaseService: ServiceModule = {
         // Initialize user document with token usage in Firestore
         let tokenUsage = {
           tokenRequestCount: 10,
-          nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+          subscribed: false
         };
 
         try {
@@ -181,7 +181,7 @@ const firebaseService: ServiceModule = {
           refreshToken: authData.refreshToken,
           tokens: {
             remaining: tokenUsage.tokenRequestCount,
-            nextUpdate: tokenUsage.nextUpdate
+            subscribed: tokenUsage.subscribed
           }
         });
       } catch (err) {
@@ -235,7 +235,7 @@ const firebaseService: ServiceModule = {
         const userData = userDoc.data();
         const tokenUsage = userData?.tokenUsage || {
           tokenRequestCount: 10,
-          nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+          subscribed: false
         };
 
         res.json({
@@ -246,7 +246,7 @@ const firebaseService: ServiceModule = {
           refreshToken: data.refreshToken,
           tokens: {
             remaining: tokenUsage.tokenRequestCount,
-            nextUpdate: tokenUsage.nextUpdate
+            subscribed: tokenUsage.subscribed
           }
         });
       } catch (err) {
@@ -348,7 +348,7 @@ const firebaseService: ServiceModule = {
         const userData = userDoc.data();
         const tokenUsage = userData?.tokenUsage || {
           tokenRequestCount: 10,
-          nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+          subscribed: false
         };
 
         res.json({
@@ -358,7 +358,7 @@ const firebaseService: ServiceModule = {
           emailVerified: user.emailVerified === 'true',
           tokens: {
             remaining: parseInt(tokenUsage.tokenRequestCount?.integerValue || '0'),
-            nextUpdate: tokenUsage.nextUpdate?.stringValue || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+            subscribed: tokenUsage.subscribed
           }
         });
       } catch (err) {
@@ -452,7 +452,7 @@ const firebaseService: ServiceModule = {
           updatedAt: new Date().toISOString(),
           tokenUsage: {
             tokenRequestCount: 10,
-            nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+            subscribed: false
           }
         });
 
