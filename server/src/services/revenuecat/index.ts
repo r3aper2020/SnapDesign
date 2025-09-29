@@ -338,8 +338,14 @@ const revenueCatService: ServiceModule = {
 
           // Get user ID from auth token
           const userId = req.user?.uid;
+          const { productId } = req.body;
+
           if (!userId) {
             return res.status(401).json({ error: 'User not authenticated' });
+          }
+
+          if (!productId) {
+            return res.status(400).json({ error: 'Product ID is required' });
           }
 
           // Initialize Firebase Admin if not already initialized
@@ -349,6 +355,43 @@ const revenueCatService: ServiceModule = {
 
           const db = admin.firestore();
           const now = new Date();
+
+          // Handle cancellation
+          if (productId === 'cancel') {
+            // Get current token usage to preserve token count
+            const userDoc = await db.collection('users').doc(userId).get();
+            const userData = userDoc.data();
+            const currentTokenCount = userData?.tokenUsage?.tokenRequestCount || DEFAULT_FREE_TOKENS;
+
+            const tokenUsage = {
+              tokenRequestCount: currentTokenCount, // Keep current token count
+              subscriptionTier: SubscriptionTier.FREE, // Move to free tier
+              lastReset: userData?.tokenUsage?.lastReset || now.toISOString(), // Keep last reset date
+              nextReset: userData?.tokenUsage?.nextReset || new Date(now.setMonth(now.getMonth() + 1)).toISOString(), // Keep next reset date
+              subscriptionEndDate: now.toISOString() // Mark when subscription ended
+            };
+
+            await db.collection('users').doc(userId).update({
+              'tokenUsage': tokenUsage,
+              updatedAt: now.toISOString()
+            });
+
+            ctx.logger.info('Cancelled subscription in stub mode', {
+              userId,
+              tokenUsage
+            });
+
+            return res.json({
+              success: true,
+              tier: 'free',
+              subscriber: {
+                subscriptions: {} // Empty subscriptions means cancelled
+              },
+              tokenUsage
+            });
+          }
+
+          // Handle subscription update
           const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
           // Update user's subscription in Firestore
