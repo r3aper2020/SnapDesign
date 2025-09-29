@@ -342,8 +342,7 @@ const firebaseService: ServiceModule = {
 
         const db = admin.firestore();
 
-        const userDoc = await db.collection('users').doc(data.localId).get();
-
+        const userDoc = await db.collection('users').doc(user.localId).get();
 
         const userData = userDoc.data();
         const tokenUsage = userData?.tokenUsage || {
@@ -357,7 +356,7 @@ const firebaseService: ServiceModule = {
           displayName: user.displayName,
           emailVerified: user.emailVerified === 'true',
           tokens: {
-            remaining: parseInt(tokenUsage.tokenRequestCount?.integerValue || '0'),
+            remaining: tokenUsage.tokenRequestCount,
             subscribed: tokenUsage.subscribed
           }
         });
