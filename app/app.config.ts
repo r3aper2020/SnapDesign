@@ -5,7 +5,12 @@ dotenv.config({ path: '.env' });
 
 const config: ExpoConfig = {
   name: 'ReVibe',
-  plugins: ['expo-secure-store'],
+  plugins: [
+    'expo-secure-store',
+    'expo-sqlite',
+    'expo-image-picker',
+    'expo-media-library'
+  ],
   slug: 'ReVibe',
   version: '1.0.0',
   orientation: 'portrait',
