@@ -106,10 +106,18 @@ class SubscriptionService {
                 throw new Error('User ID not set');
             }
 
-            const productId = typeof tierOrProductId === 'string'
-                ? tierOrProductId
-                : this.getProductIdForTier(tierOrProductId);
+            // Special case for cancellation
+            if (tierOrProductId === 'cancel') {
+                await apiService.post(endpoints.subscription.update(), { productId: 'cancel' });
+                return;
+            }
 
+            // Always convert to tier and then get product ID
+            const tier = typeof tierOrProductId === 'string'
+                ? Object.values(SubscriptionTier).find(t => t === tierOrProductId) || SubscriptionTier.FREE
+                : tierOrProductId;
+
+            const productId = this.getProductIdForTier(tier);
             await apiService.post(endpoints.subscription.update(), { productId });
 
             // Refresh token usage after subscription update

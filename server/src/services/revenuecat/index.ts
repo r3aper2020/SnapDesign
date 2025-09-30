@@ -374,7 +374,7 @@ const revenueCatService: ServiceModule = {
             const nextMonthPrice = targetPrice;
 
             res.json({
-              proratedPrice: Number(proratedPrice.toFixed(2)),
+              proratedPrice: parseFloat(proratedPrice.toFixed(2)),
               nextMonthPrice,
               daysRemaining: Math.ceil(daysRemaining),
               currentTokens: currentTokenUsage.tokenRequestCount,

@@ -143,23 +143,23 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                     // Show pro-rated price for upgrade
                                     <View>
                                         <Text style={[styles.packagePrice, { color: theme.colors.text.primary }]}>
-                                            ${prorateInfo.proratedPrice}
+                                            ${prorateInfo.proratedPrice.toFixed(2)}
                                         </Text>
                                         <Text style={[styles.originalPrice, { color: theme.colors.text.secondary, textDecorationLine: 'line-through' }]}>
-                                            ${SUBSCRIPTION_PLANS[tier].price}
+                                            ${SUBSCRIPTION_PLANS[tier].price.toFixed(2)}
                                         </Text>
                                         <Text style={[styles.proratedLabel, { color: theme.colors.accent.purple }]}>
                                             Pro-rated for {prorateInfo.daysRemaining} days
                                         </Text>
                                         <Text style={[styles.packagePeriod, { color: theme.colors.text.secondary }]}>
-                                            then ${prorateInfo.nextMonthPrice}/month
+                                            then ${prorateInfo.nextMonthPrice.toFixed(2)}/month
                                         </Text>
                                     </View>
                                 ) : (
                                     // Show regular price
                                     <View>
                                         <Text style={[styles.packagePrice, { color: theme.colors.text.primary }]}>
-                                            ${SUBSCRIPTION_PLANS[tier].price}
+                                            ${SUBSCRIPTION_PLANS[tier].price.toFixed(2)}
                                         </Text>
                                         <Text style={[styles.packagePeriod, { color: theme.colors.text.secondary }]}>
                                             per month
