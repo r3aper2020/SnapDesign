@@ -1,8 +1,9 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
+import { useAuth } from '../contexts/AuthContext';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ServiceSelectionScreen } from '../screens/ServiceSelectionScreen';
 import { SavedDesignsScreen } from '../screens/SavedDesignsScreen';
@@ -54,9 +55,35 @@ const SettingsIcon = ({ size = 24, color = '#666', focused = false }) => (
   </View>
 );
 
+const AuthRequiredScreen: React.FC<{ children: React.ReactNode; navigation: any }> = ({ children, navigation }) => {
+  const { isAuthenticated } = useAuth();
+  const { theme } = useTheme();
+
+  if (!isAuthenticated) {
+    return (
+      <View style={[styles.authRequiredContainer, { backgroundColor: theme.colors.background.primary }]}>
+        <Text style={[styles.authRequiredText, { color: theme.colors.text.primary }]}>
+          Please sign in to access this feature
+        </Text>
+        <TouchableOpacity
+          style={[styles.authButton, { backgroundColor: theme.colors.button.primary }]}
+          onPress={() => navigation.navigate('Login')}
+        >
+          <Text style={[styles.authButtonText, { color: theme.colors.text.primary }]}>
+            Sign In
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return <>{children}</>;
+};
+
 export const BottomTabNavigator: React.FC = () => {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isAuthenticated, logout } = useAuth();
 
   return (
     <Tab.Navigator
@@ -97,31 +124,41 @@ export const BottomTabNavigator: React.FC = () => {
         headerShown: false,
       })}
     >
-      <Tab.Screen 
-        name="Home" 
+      <Tab.Screen
+        name="Home"
         component={HomeScreen}
         options={{
           tabBarLabel: 'Home',
         }}
       />
-      <Tab.Screen 
-        name="Design" 
-        component={ServiceSelectionScreen}
+      <Tab.Screen
+        name="Design"
         options={{
           tabBarLabel: 'Create',
         }}
-      />
-      <Tab.Screen 
-        name="SavedDesigns" 
-        component={SavedDesignsScreen}
+      >
+        {({ navigation }) => (
+          <AuthRequiredScreen navigation={navigation}>
+            <ServiceSelectionScreen navigation={navigation} />
+          </AuthRequiredScreen>
+        )}
+      </Tab.Screen>
+      <Tab.Screen
+        name="SavedDesigns"
         options={{
           tabBarLabel: 'Saved',
         }}
-      />
-      <Tab.Screen 
-        name="Settings" 
+      >
+        {({ navigation }) => (
+          <AuthRequiredScreen navigation={navigation}>
+            <SavedDesignsScreen navigation={navigation} />
+          </AuthRequiredScreen>
+        )}
+      </Tab.Screen>
+      <Tab.Screen
+        name="Settings"
         options={{
-          tabBarLabel: 'Settings',
+          tabBarLabel: isAuthenticated ? 'Account' : 'Settings',
         }}
       >
         {({ navigation }) => <SettingsScreen navigation={navigation} />}
@@ -131,6 +168,28 @@ export const BottomTabNavigator: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  authRequiredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  authRequiredText: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  authButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  authButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
   iconContainer: {
     width: 40,
     height: 40,

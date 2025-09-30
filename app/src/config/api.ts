@@ -22,4 +22,10 @@ export const endpoints = {
     updateLastLogin: (uid: string): string => `${API_BASE_URL}/firestore/users/${uid}/last-login`,
     updateStats: (uid: string): string => `${API_BASE_URL}/firestore/users/${uid}/stats`,
   },
+  // Subscription endpoints
+  subscription: {
+    update: (): string => `${API_BASE_URL}/revenuecat/subscriptions/update`,
+    status: (userId: string): string => `${API_BASE_URL}/revenuecat/subscribers/${userId}`,
+    prorate: (userId: string, targetTier: string): string => `${API_BASE_URL}/revenuecat/prorate/${userId}?targetTier=${targetTier}`,
+  },
 };

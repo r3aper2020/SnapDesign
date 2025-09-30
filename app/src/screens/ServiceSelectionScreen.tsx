@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/ThemeProvider';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { TokenBanner, SubscriptionSheet } from '../components';
+import { apiService } from '../services';
+import { endpoints } from '../config/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -306,7 +310,14 @@ const serviceOptions = [
 // ============================================================================
 export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ navigation }) => {
   const { theme } = useTheme();
-  
+
+  // State for token usage and subscription modal
+  const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
+  const [userSubscribed, setUserSubscribed] = useState<boolean | null>(null);
+  const [isSubscriptionModalVisible, setIsSubscriptionModalVisible] = useState(false);
+  const [pendingServiceId, setPendingServiceId] = useState<string | null>(null);
+  const [showBanner, setShowBanner] = useState(true);
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -334,30 +345,83 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
     ]).start();
   }, []);
 
+  const fetchTokenUsage = async () => {
+    try {
+      interface AuthMeResponse {
+        tokens: {
+          remaining: number;
+          subscribed: boolean;
+        };
+      }
+      const response = await apiService.get<AuthMeResponse>(endpoints.auth.me());
+      if (response.tokens) {
+        setTokensRemaining(response.tokens.remaining);
+        setUserSubscribed(response.tokens.subscribed);
+      }
+    } catch (error) {
+      console.error('Failed to fetch token usage:', error);
+    }
+  };
+
+  // Fetch token usage when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      setShowBanner(true);
+      fetchTokenUsage();
+    }, [])
+  );
+
   const handleServiceSelect = (serviceId: string) => {
     console.log('Service selected:', serviceId);
-    switch (serviceId) {
-      case 'design':
-        console.log('Navigating to Design screen...');
-        try {
-          // Navigate to the Design screen using the parent navigator
-          navigation.getParent()?.navigate('Design');
-          console.log('Navigation command sent successfully');
-        } catch (error) {
-          console.error('Navigation error:', error);
-        }
-        break;
-      case 'declutter':
-        console.log('Navigating to Declutter screen...');
-        navigation.getParent()?.navigate('Declutter');
-        break;
-            case 'makeover':
-              console.log('Navigating to Makeover screen...');
-              navigation.getParent()?.navigate('Makeover');
-              break;
-      default:
-        console.log('Unknown service selected');
+
+    // Check if user has tokens or is subscribed
+    if (!userSubscribed && (tokensRemaining === 0 || tokensRemaining === null)) {
+      setPendingServiceId(serviceId);
+      setIsSubscriptionModalVisible(true);
+      return;
     }
+
+    navigateToService(serviceId);
+  };
+
+  const navigateToService = (serviceId: string) => {
+    try {
+      switch (serviceId) {
+        case 'design':
+          navigation.getParent()?.navigate('Design');
+          break;
+        case 'declutter':
+          navigation.getParent()?.navigate('Declutter');
+          break;
+        case 'makeover':
+          navigation.getParent()?.navigate('Makeover');
+          break;
+        default:
+          console.log('Unknown service selected');
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  };
+
+  const handleSubscribeSuccess = async () => {
+    // Refresh token usage after successful subscription
+    try {
+      interface AuthMeResponse {
+        tokens: {
+          remaining: number;
+          subscribed: boolean;
+        };
+      }
+      const response = await apiService.get<AuthMeResponse>(endpoints.auth.me());
+      if (response.tokens) {
+        setTokensRemaining(response.tokens.remaining);
+        setUserSubscribed(response.tokens.subscribed);
+      }
+    } catch (error) {
+      console.error('Failed to refresh token usage:', error);
+    }
+    setIsSubscriptionModalVisible(false);
   };
 
   const renderServiceCard = (service: typeof serviceOptions[0], index: number) => (
@@ -390,7 +454,7 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
           {/* Decorative elements */}
           <View style={styles.decorativeCircle1} />
           <View style={styles.decorativeCircle2} />
-          
+
           <View style={styles.serviceCardContent}>
             <View style={styles.serviceHeader}>
               <View style={[styles.serviceIconContainer, { backgroundColor: service.circleColor }]}>
@@ -400,12 +464,12 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
                 <ArrowIcon size={18} color="#FFFFFF" />
               </View>
             </View>
-            
+
             <View style={styles.serviceTextContainer}>
               <Text style={styles.serviceTitle}>{service.title}</Text>
               <Text style={styles.serviceSubtitle}>{service.subtitle}</Text>
               <Text style={styles.serviceDescription}>{service.description}</Text>
-              
+
               {/* Features */}
               <View style={styles.featuresContainer}>
                 {service.features.map((feature, idx) => (
@@ -424,17 +488,33 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.background.primary} />
-      
+
       {/* Background Image */}
-      <Image 
-        source={require('../../assets/background.png')} 
+      <Image
+        source={require('../../assets/background.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
       />
-      
+
       <View style={styles.content}>
+        {/* Token Banner */}
+        <TokenBanner
+          tokensRemaining={tokensRemaining}
+          userSubscribed={userSubscribed}
+          shouldShow={showBanner}
+          onSubscribe={() => setIsSubscriptionModalVisible(true)}
+        />
+
+        {/* Subscription Sheet */}
+        <SubscriptionSheet
+          visible={isSubscriptionModalVisible}
+          onClose={() => setIsSubscriptionModalVisible(false)}
+          onSuccess={handleSubscribeSuccess}
+          tokensRemaining={tokensRemaining || 0}
+        />
+
         {/* Header Section */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.header,
             {
@@ -444,13 +524,13 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
           ]}
         >
           <View style={styles.logoContainer}>
-            <Image 
-              source={require('../../assets/re-vibe.png')} 
+            <Image
+              source={require('../../assets/re-vibe.png')}
               style={styles.logo}
               resizeMode="contain"
             />
           </View>
-          
+
           <Text style={[styles.title, { color: theme.colors.text.primary }]}>
             Choose Your Service
           </Text>
@@ -465,7 +545,7 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
         </View>
 
         {/* Footer */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.footer,
             {

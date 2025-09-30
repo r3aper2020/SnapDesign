@@ -27,7 +27,6 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { designStorage } from '../services/DesignStorage';
 import { apiService } from '../services';
 import {
-  ImagePreview,
   InspirationModal,
   ErrorDisplay,
   SparkleIcon,
@@ -35,6 +34,7 @@ import {
 } from '../components';
 import { useDesignForm } from '../hooks/useDesignForm';
 
+// Get screen dimensions for styles
 const { width, height } = Dimensions.get('window');
 
 // ============================================================================
@@ -50,14 +50,6 @@ interface DesignScreenProps {
 // MAIN COMPONENT
 // ============================================================================
 export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
-  console.log('DesignScreen loaded');
-
-  useEffect(() => {
-    console.log('DesignScreen mounted');
-    return () => {
-      console.log('DesignScreen unmounted');
-    };
-  }, []);
 
   // ============================================================================
   // STATE & HOOKS
@@ -70,13 +62,9 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
 
   // Local state for image (more reliable than hook state)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
-  const [localImageRenderKey, setLocalImageRenderKey] = useState(0);
 
   // Custom hooks
   const formState = useDesignForm();
-
-  // Get screen dimensions
-  const { width, height } = Dimensions.get('window');
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -130,7 +118,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       // Set local state immediately for display
       if (asset.uri) {
         setLocalImageUri(asset.uri);
-        setLocalImageRenderKey(prev => prev + 1);
       }
 
       formState.setIsProcessingImage(true);
@@ -165,7 +152,6 @@ export const DesignScreen: React.FC<DesignScreenProps> = ({ navigation }) => {
       // Set local state immediately for display
       if (asset.uri) {
         setLocalImageUri(asset.uri);
-        setLocalImageRenderKey(prev => prev + 1);
       }
 
       formState.setIsProcessingImage(true);

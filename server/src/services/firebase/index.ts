@@ -1,5 +1,6 @@
 import type { Express, Request, Response, NextFunction } from 'express';
 import type { ServiceModule, ServiceContext } from '../../core/types';
+import { SubscriptionTier, DEFAULT_FREE_TOKENS } from '../../services/revenuecat';
 import path from 'path';
 import dotenv from 'dotenv';
 import { verifyFirebaseToken } from '../../core/auth';
@@ -141,9 +142,14 @@ const firebaseService: ServiceModule = {
         }
 
         // Initialize user document with token usage in Firestore
+        const now = new Date();
+        const expiryDate = new Date(now.setMonth(now.getMonth() + 1));
         let tokenUsage = {
-          tokenRequestCount: 10,
-          nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+          tokenRequestCount: DEFAULT_FREE_TOKENS,
+          subscriptionTier: SubscriptionTier.FREE,
+          lastReset: now.toISOString(),
+          nextReset: expiryDate.toISOString(),
+          subscriptionEndDate: expiryDate.toISOString()
         };
 
         try {
@@ -181,7 +187,9 @@ const firebaseService: ServiceModule = {
           refreshToken: authData.refreshToken,
           tokens: {
             remaining: tokenUsage.tokenRequestCount,
-            nextUpdate: tokenUsage.nextUpdate
+            subscriptionTier: tokenUsage.subscriptionTier,
+            lastReset: tokenUsage.lastReset,
+            nextReset: tokenUsage.nextReset
           }
         });
       } catch (err) {
@@ -234,8 +242,10 @@ const firebaseService: ServiceModule = {
         const userDoc = await db.collection('users').doc(data.localId).get();
         const userData = userDoc.data();
         const tokenUsage = userData?.tokenUsage || {
-          tokenRequestCount: 10,
-          nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+          tokenRequestCount: DEFAULT_FREE_TOKENS,
+          subscriptionTier: SubscriptionTier.FREE,
+          lastReset: new Date().toISOString(),
+          nextReset: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
         };
 
         res.json({
@@ -246,7 +256,7 @@ const firebaseService: ServiceModule = {
           refreshToken: data.refreshToken,
           tokens: {
             remaining: tokenUsage.tokenRequestCount,
-            nextUpdate: tokenUsage.nextUpdate
+            subscriptionTier: tokenUsage.subscriptionTier
           }
         });
       } catch (err) {
@@ -342,13 +352,15 @@ const firebaseService: ServiceModule = {
 
         const db = admin.firestore();
 
-        const userDoc = await db.collection('users').doc(data.localId).get();
-
+        const userDoc = await db.collection('users').doc(user.localId).get();
 
         const userData = userDoc.data();
+        const now = new Date();
         const tokenUsage = userData?.tokenUsage || {
-          tokenRequestCount: 10,
-          nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+          tokenRequestCount: DEFAULT_FREE_TOKENS,
+          subscriptionTier: SubscriptionTier.FREE,
+          lastReset: now.toISOString(),
+          nextReset: new Date(now.setMonth(now.getMonth() + 1)).toISOString()
         };
 
         res.json({
@@ -357,8 +369,10 @@ const firebaseService: ServiceModule = {
           displayName: user.displayName,
           emailVerified: user.emailVerified === 'true',
           tokens: {
-            remaining: parseInt(tokenUsage.tokenRequestCount?.integerValue || '0'),
-            nextUpdate: tokenUsage.nextUpdate?.stringValue || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+            remaining: tokenUsage.tokenRequestCount,
+            subscriptionTier: tokenUsage.subscriptionTier,
+            lastReset: tokenUsage.lastReset,
+            nextReset: tokenUsage.nextReset
           }
         });
       } catch (err) {
@@ -451,8 +465,8 @@ const firebaseService: ServiceModule = {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           tokenUsage: {
-            tokenRequestCount: 10,
-            nextUpdate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+            tokenRequestCount: DEFAULT_FREE_TOKENS,
+            subscriptionTier: SubscriptionTier.FREE
           }
         });
 
