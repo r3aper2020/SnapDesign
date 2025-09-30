@@ -1,8 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { ServiceContext } from './types';
 import * as admin from 'firebase-admin';
-import { FirebaseUser } from './auth';
-import { DEFAULT_FREE_TOKENS } from '../services/revenuecat';
+import { DEFAULT_FREE_TOKENS, getTokensForTier } from '../services/revenuecat';
 import { checkAndResetTokens, SubscriptionTier } from '../services/revenuecat';
 
 interface TokenUsage {
@@ -11,6 +10,7 @@ interface TokenUsage {
     lastReset: string;
     nextReset: string | null;
     subscriptionEndDate?: string | null;
+    nextTier?: SubscriptionTier | null;  // The tier to transition to at next reset
 }
 
 // Check if subscription has expired and should be reset to free tier
@@ -30,12 +30,20 @@ async function checkSubscriptionExpiry(
         // Check subscription end date first (most efficient)
         if (tokenUsage.subscriptionEndDate && new Date(tokenUsage.subscriptionEndDate) <= now) {
             ctx.logger.info('Subscription expired by date', { userId });
+
+            // If there's a nextTier set (from cancellation), use that
+            const effectiveTier = tokenUsage.nextTier || SubscriptionTier.FREE;
+            const tokenCount = effectiveTier === tokenUsage.subscriptionTier ?
+                tokenUsage.tokenRequestCount : // Keep current tokens if staying on same tier
+                getTokensForTier(effectiveTier); // Reset tokens if changing tiers
+
             return {
-                tokenRequestCount: DEFAULT_FREE_TOKENS,
-                subscriptionTier: SubscriptionTier.FREE,
-                lastReset: now.toISOString(),
-                nextReset: new Date(now.setMonth(now.getMonth() + 1)).toISOString(),
-                subscriptionEndDate: null
+                tokenRequestCount: tokenCount,
+                subscriptionTier: effectiveTier,
+                lastReset: tokenUsage.lastReset, // Keep last reset date
+                nextReset: tokenUsage.nextReset, // Keep next reset date
+                subscriptionEndDate: null,
+                nextTier: null // Clear nextTier since we've transitioned
             };
         }
 
@@ -47,12 +55,20 @@ async function checkSubscriptionExpiry(
         // If subscription is no longer active in RevenueCat
         if (currentTier === SubscriptionTier.FREE) {
             ctx.logger.info('Subscription cancelled in RevenueCat', { userId });
+
+            // If there's a nextTier set (from cancellation), use that
+            const effectiveTier = tokenUsage.nextTier || SubscriptionTier.FREE;
+            const tokenCount = effectiveTier === tokenUsage.subscriptionTier ?
+                tokenUsage.tokenRequestCount : // Keep current tokens if staying on same tier
+                getTokensForTier(effectiveTier); // Reset tokens if changing tiers
+
             return {
-                tokenRequestCount: DEFAULT_FREE_TOKENS,
-                subscriptionTier: SubscriptionTier.FREE,
-                lastReset: now.toISOString(),
-                nextReset: new Date(now.setMonth(now.getMonth() + 1)).toISOString(),
-                subscriptionEndDate: null
+                tokenRequestCount: tokenCount,
+                subscriptionTier: effectiveTier,
+                lastReset: tokenUsage.lastReset, // Keep last reset date
+                nextReset: tokenUsage.nextReset, // Keep next reset date
+                subscriptionEndDate: null,
+                nextTier: null // Clear nextTier since we've transitioned
             };
         }
 

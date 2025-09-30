@@ -25,6 +25,8 @@ interface SubscriptionSheetProps {
     onCancelSubscription?: () => void;
     tokensRemaining?: number;
     onDowngrade?: () => void;
+    nextTier?: SubscriptionTier | null;
+    nextReset?: string | null;
 }
 
 export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
@@ -35,6 +37,8 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     onCancelSubscription,
     onDowngrade,
     tokensRemaining = 0,
+    nextTier = null,
+    nextReset = null,
 }) => {
     const { theme } = useTheme();
     const [selectedTier, setSelectedTier] = useState<SubscriptionTier | null>(null);
@@ -103,8 +107,12 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                     >
                         <Text style={styles.title}>Design Tokens</Text>
                         <Text style={styles.subtitle}>
-                            Current Plan: {SUBSCRIPTION_PLANS[currentTier].name}{'\n'}
-                            {tokensRemaining} / {SUBSCRIPTION_PLANS[currentTier].tokensPerMonth} tokens remaining
+                            Current Plan: {SUBSCRIPTION_PLANS[currentTier].name}
+                            {nextTier && nextReset ? (
+                                `\nChanging to ${SUBSCRIPTION_PLANS[nextTier].name} on ${new Date(nextReset).toLocaleDateString()}`
+                            ) : (
+                                `\n${tokensRemaining} / ${SUBSCRIPTION_PLANS[currentTier].tokensPerMonth} tokens remaining`
+                            )}
                         </Text>
                     </LinearGradient>
 

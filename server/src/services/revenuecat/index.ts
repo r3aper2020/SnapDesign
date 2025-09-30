@@ -47,6 +47,7 @@ interface TokenUsage {
   lastReset: string;
   nextReset: string | null;
   subscriptionEndDate?: string | null;
+  nextTier?: SubscriptionTier | null;  // The tier to transition to at next reset (e.g. after cancellation)
 }
 
 export async function checkAndResetTokens(
@@ -96,12 +97,16 @@ export async function checkAndResetTokens(
   const nextResetDate = new Date(now);
   nextResetDate.setMonth(nextResetDate.getMonth() + 1);
 
+  // If there's a nextTier set (from cancellation), use that instead of current tier
+  const effectiveTier = userData.tokenUsage.nextTier || tier;
+
   const newTokenUsage: TokenUsage = {
-    tokenRequestCount: getTokensForTier(tier),
-    subscriptionTier: tier,
+    tokenRequestCount: getTokensForTier(effectiveTier),
+    subscriptionTier: effectiveTier,
     lastReset: now.toISOString(),
     nextReset: nextResetDate.toISOString(),
-    subscriptionEndDate  // Keep track of subscription end date separately
+    subscriptionEndDate,  // Keep track of subscription end date separately
+    nextTier: undefined  // Clear the nextTier since we've now transitioned
   };
 
   await db.collection('users').doc(userId).update({
@@ -191,7 +196,7 @@ async function updateFirestoreSubscription(
   }
 }
 
-function getTokensForTier(tier: SubscriptionTier): number {
+export function getTokensForTier(tier: SubscriptionTier): number {
   switch (tier) {
     case SubscriptionTier.FREE:
       return DEFAULT_FREE_TOKENS;
@@ -470,41 +475,6 @@ const revenueCatService: ServiceModule = {
           const db = admin.firestore();
           const now = new Date();
 
-          // Handle cancellation
-          if (productId === 'cancel') {
-            // Get current token usage to preserve token count
-            const userDoc = await db.collection('users').doc(userId).get();
-            const userData = userDoc.data();
-            const currentTokenCount = userData?.tokenUsage?.tokenRequestCount || DEFAULT_FREE_TOKENS;
-
-            const tokenUsage = {
-              tokenRequestCount: currentTokenCount, // Keep current token count
-              subscriptionTier: SubscriptionTier.FREE, // Move to free tier
-              lastReset: userData?.tokenUsage?.lastReset || now.toISOString(), // Keep last reset date
-              nextReset: userData?.tokenUsage?.nextReset || new Date(now.setMonth(now.getMonth() + 1)).toISOString(), // Keep next reset date
-              subscriptionEndDate: now.toISOString() // Mark when subscription ended
-            };
-
-            await db.collection('users').doc(userId).update({
-              'tokenUsage': tokenUsage,
-              updatedAt: now.toISOString()
-            });
-
-            ctx.logger.info('Cancelled subscription in stub mode', {
-              userId,
-              tokenUsage
-            });
-
-            return res.json({
-              success: true,
-              tier: 'free',
-              subscriber: {
-                subscriptions: {} // Empty subscriptions means cancelled
-              },
-              tokenUsage
-            });
-          }
-
           // Handle subscription update
           const userDoc = await db.collection('users').doc(userId).get();
           const userData = userDoc.data();
@@ -521,28 +491,91 @@ const revenueCatService: ServiceModule = {
             subscriptionEndDate: null
           };
 
-          // Determine subscription tier from product ID
-          let subscriptionTier: SubscriptionTier;
-          let maxTokenCount: number;
+          // Handle all subscription changes through product ID
+          let tokenUsage;
+          let response;
 
           switch (productId) {
+            case 'cancel':
+              tokenUsage = {
+                tokenRequestCount: currentTokenUsage.tokenRequestCount, // Keep current token count
+                subscriptionTier: currentTokenUsage.subscriptionTier, // Keep current tier until reset
+                nextTier: SubscriptionTier.FREE, // Will become FREE after reset
+                lastReset: currentTokenUsage.lastReset,
+                nextReset: currentTokenUsage.nextReset,
+                subscriptionEndDate: now.toISOString() // Mark when subscription ended
+              };
+
+              await db.collection('users').doc(userId).update({
+                'tokenUsage': tokenUsage,
+                updatedAt: now.toISOString()
+              });
+
+              return res.json({
+                success: true,
+                tier: 'free',
+                subscriber: {
+                  subscriptions: {} // Empty subscriptions means cancelled
+                },
+                tokenUsage
+              });
+
+            case 'downgrade_to_creator':
+              tokenUsage = {
+                tokenRequestCount: currentTokenUsage.tokenRequestCount, // Keep current token count
+                subscriptionTier: currentTokenUsage.subscriptionTier, // Keep current tier until reset
+                nextTier: SubscriptionTier.CREATOR, // Will become Creator at next reset
+                lastReset: currentTokenUsage.lastReset,
+                nextReset: currentTokenUsage.nextReset,
+                subscriptionEndDate: currentTokenUsage.nextReset // Set end date to match next reset
+              };
+
+              await db.collection('users').doc(userId).update({
+                'tokenUsage': tokenUsage,
+                updatedAt: now.toISOString()
+              });
+
+              return res.json({
+                success: true,
+                tier: currentTokenUsage.subscriptionTier,
+                subscriber: {
+                  subscriptions: {
+                    'mock_sub': {
+                      expires_date: tokenUsage.nextReset,
+                      product_identifier: `${currentTokenUsage.subscriptionTier}_monthly`
+                    }
+                  }
+                },
+                tokenUsage
+              });
             case 'creator_monthly':
-              subscriptionTier = SubscriptionTier.CREATOR;
-              maxTokenCount = DEFAULT_CREATOR_TOKENS;
+              tokenUsage = {
+                tokenRequestCount: DEFAULT_CREATOR_TOKENS,
+                subscriptionTier: SubscriptionTier.CREATOR,
+                lastReset: now.toISOString(),
+                nextReset: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                subscriptionEndDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+              };
               break;
+
             case 'professional_monthly':
-              subscriptionTier = SubscriptionTier.PROFESSIONAL;
-              maxTokenCount = DEFAULT_PROFESSIONAL_TOKENS;
+              tokenUsage = {
+                tokenRequestCount: DEFAULT_PROFESSIONAL_TOKENS,
+                subscriptionTier: SubscriptionTier.PROFESSIONAL,
+                lastReset: now.toISOString(),
+                nextReset: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                subscriptionEndDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+              };
               break;
+
             default:
               return res.status(400).json({ error: 'Invalid product ID' });
           }
 
-          // Calculate pro-rated tokens for upgrade
-          let tokenCount = maxTokenCount;
+          // For new subscriptions, calculate pro-rated tokens if upgrading
           if (currentTokenUsage.subscriptionTier !== SubscriptionTier.FREE &&
             currentTokenUsage.nextReset &&
-            subscriptionTier > currentTokenUsage.subscriptionTier) {
+            tokenUsage.subscriptionTier > currentTokenUsage.subscriptionTier) {
 
             const nextReset = new Date(currentTokenUsage.nextReset);
             const daysRemaining = (nextReset.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
@@ -555,7 +588,8 @@ const revenueCatService: ServiceModule = {
             const remainingTokenValue = (remainingTokens / currentMaxTokens) * remainingRatio;
 
             // Apply that value to new subscription tier
-            tokenCount = Math.round(maxTokenCount * remainingTokenValue + maxTokenCount * (1 - remainingRatio));
+            const maxTokenCount = getTokensForTier(tokenUsage.subscriptionTier);
+            tokenUsage.tokenRequestCount = Math.round(maxTokenCount * remainingTokenValue + maxTokenCount * (1 - remainingRatio));
 
             ctx.logger.info('Pro-rated upgrade calculation', {
               daysRemaining,
@@ -563,18 +597,9 @@ const revenueCatService: ServiceModule = {
               currentMaxTokens,
               remainingTokens,
               remainingTokenValue,
-              finalTokenCount: tokenCount
+              finalTokenCount: tokenUsage.tokenRequestCount
             });
           }
-
-          // Update user's subscription in Firestore
-          const tokenUsage = {
-            tokenRequestCount: tokenCount,
-            subscriptionTier: subscriptionTier,
-            lastReset: currentTokenUsage.lastReset,
-            nextReset: currentTokenUsage.nextReset || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            subscriptionEndDate: currentTokenUsage.nextReset || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
-          };
 
           await db.collection('users').doc(userId).update({
             'tokenUsage': tokenUsage,
@@ -586,10 +611,10 @@ const revenueCatService: ServiceModule = {
             tokenUsage
           });
 
-          // Return mock subscription update response
-          res.json({
+          // Return subscription update response
+          return res.json({
             success: true,
-            tier: subscriptionTier,
+            tier: tokenUsage.subscriptionTier,
             subscriber: {
               subscriptions: {
                 'mock_sub': {

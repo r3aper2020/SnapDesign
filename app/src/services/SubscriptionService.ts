@@ -7,6 +7,7 @@ interface SubscriptionStatus {
     tokensRemaining: number;
     nextReset: string | null;
     isActive: boolean;
+    nextTier?: SubscriptionTier | null;  // The tier to transition to at next reset
 }
 
 interface ProrateInfo {
@@ -65,6 +66,7 @@ class SubscriptionService {
                     lastReset: string;
                     nextReset: string;
                     subscriptionTier: SubscriptionTier;
+                    nextTier?: SubscriptionTier | null;
                 };
             }>(endpoints.auth.me());
 
@@ -72,7 +74,8 @@ class SubscriptionService {
                 tier: response.tier,
                 tokensRemaining: authResponse.tokens.remaining,
                 nextReset: authResponse.tokens.nextReset,
-                isActive: response.active
+                isActive: response.active,
+                nextTier: authResponse.tokens.nextTier || null
             };
         } catch (error) {
             console.error('Failed to get subscription status:', error);
@@ -80,7 +83,8 @@ class SubscriptionService {
                 tier: SubscriptionTier.FREE,
                 tokensRemaining: 10,
                 nextReset: null,
-                isActive: false
+                isActive: false,
+                nextTier: null
             };
         }
     }
@@ -106,9 +110,12 @@ class SubscriptionService {
                 throw new Error('User ID not set');
             }
 
-            // Special case for cancellation
+            // Special cases for cancellation and downgrade
             if (tierOrProductId === 'cancel') {
                 await apiService.post(endpoints.subscription.update(), { productId: 'cancel' });
+                return;
+            } else if (tierOrProductId === 'downgrade') {
+                await apiService.post(endpoints.subscription.update(), { productId: 'downgrade_to_creator' });
                 return;
             }
 

@@ -151,6 +151,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
     tier: SubscriptionTier;
     isActive: boolean;
     tokensRemaining: number;
+    nextTier?: SubscriptionTier | null;
+    nextReset?: string | null;
   } | null>(null);
 
   const fetchSubscriptionStatus = useCallback(async () => {
@@ -160,7 +162,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
       setSubscriptionStatus({
         tier: status.tier,
         isActive: status.isActive,
-        tokensRemaining: status.tokensRemaining
+        tokensRemaining: status.tokensRemaining,
+        nextTier: status.nextTier,
+        nextReset: status.nextReset
       });
     } catch (error) {
       console.error('Failed to fetch subscription status:', error);
@@ -290,6 +294,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         onSuccess={handleSubscriptionUpdate}
         currentTier={subscriptionStatus?.tier}
         tokensRemaining={subscriptionStatus?.tokensRemaining}
+        nextTier={subscriptionStatus?.nextTier}
+        nextReset={subscriptionStatus?.nextReset}
+        onDowngrade={async () => {
+          try {
+            await subscriptionService.updateSubscription('downgrade');
+            await fetchSubscriptionStatus();
+            setShowSubscriptionSheet(false);
+            Alert.alert(
+              'Subscription Updated',
+              'Your subscription will be downgraded to the Creator plan at your next reset date.'
+            );
+          } catch (error) {
+            console.error('Failed to downgrade subscription:', error);
+            Alert.alert(
+              'Error',
+              'Failed to downgrade subscription. Please try again later.'
+            );
+          }
+        }}
         onCancelSubscription={async () => {
           try {
             await subscriptionService.cancelSubscription();
