@@ -16,6 +16,31 @@ export const DEFAULT_FREE_TOKENS = 10;
 export const DEFAULT_CREATOR_TOKENS = 50;
 export const DEFAULT_PROFESSIONAL_TOKENS = 125;
 
+export const DEFAULT_FREE_PRICE = 0;
+export const DEFAULT_CREATOR_PRICE = 4.99;
+export const DEFAULT_PROFESSIONAL_PRICE = 10.99;
+
+const SUBSCRIPTION_PLANS: Record<SubscriptionTier, { tier: string; name: string; tokensPerMonth: number; price: number }> = {
+  [SubscriptionTier.FREE]: {
+    tier: 'free',
+    name: 'Free Plan',
+    tokensPerMonth: DEFAULT_FREE_TOKENS,
+    price: DEFAULT_FREE_PRICE
+  },
+  [SubscriptionTier.CREATOR]: {
+    tier: 'creator',
+    name: 'Creator Plan',
+    tokensPerMonth: DEFAULT_CREATOR_TOKENS,
+    price: DEFAULT_CREATOR_PRICE
+  },
+  [SubscriptionTier.PROFESSIONAL]: {
+    tier: 'professional',
+    name: 'Professional Plan',
+    tokensPerMonth: DEFAULT_PROFESSIONAL_TOKENS,
+    price: DEFAULT_PROFESSIONAL_PRICE
+  }
+};
+
 interface TokenUsage {
   tokenRequestCount: number;
   subscriptionTier: SubscriptionTier;
@@ -300,6 +325,79 @@ const revenueCatService: ServiceModule = {
     if (!revenueCatConfig) {
       ctx.logger.info('Registering stub endpoints for testing');
 
+      // GET /revenuecat/prorate/:userId - Calculate pro-rated upgrade price
+      app.get('/revenuecat/prorate/:userId', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
+        try {
+          // Ensure user can only access their own subscription info
+          if (!req.user || req.user.uid !== req.params.userId) {
+            return res.status(403).json({ error: 'Unauthorized access' });
+          }
+
+          const targetTier = req.query.targetTier as SubscriptionTier;
+          if (!targetTier) {
+            return res.status(400).json({ error: 'Target tier is required' });
+          }
+
+          // Initialize Firebase Admin if not already initialized
+          if (!admin.apps.length) {
+            initializeFirebaseAdmin(ctx);
+          }
+
+          // Get user's current subscription info
+          const db = admin.firestore();
+          const userDoc = await db.collection('users').doc(req.params.userId).get();
+          const userData = userDoc.data();
+
+          if (!userData) {
+            return res.status(404).json({ error: 'User not found' });
+          }
+
+          const currentTokenUsage = userData.tokenUsage;
+          const now = new Date();
+
+          // Only calculate pro-rated price if already subscribed
+          if (currentTokenUsage.subscriptionTier === SubscriptionTier.CREATOR &&
+            currentTokenUsage.nextReset &&
+            targetTier === SubscriptionTier.PROFESSIONAL) {
+
+            const nextReset = new Date(currentTokenUsage.nextReset);
+            const daysRemaining = (nextReset.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+            const daysInMonth = 30;
+            const remainingRatio = daysRemaining / daysInMonth;
+
+            // Get prices
+            const currentPrice = SUBSCRIPTION_PLANS[currentTokenUsage.subscriptionTier as SubscriptionTier].price;
+            const targetPrice = SUBSCRIPTION_PLANS[targetTier as SubscriptionTier].price;
+
+            // Calculate pro-rated price
+            const proratedPrice = (targetPrice - currentPrice) * remainingRatio;
+            const nextMonthPrice = targetPrice;
+
+            res.json({
+              proratedPrice: Number(proratedPrice.toFixed(2)),
+              nextMonthPrice,
+              daysRemaining: Math.ceil(daysRemaining),
+              currentTokens: currentTokenUsage.tokenRequestCount,
+              targetTokens: getTokensForTier(targetTier),
+              nextReset: nextReset.toISOString()
+            });
+          } else {
+            // Not eligible for pro-rating
+            res.json({
+              proratedPrice: SUBSCRIPTION_PLANS[targetTier].price,
+              nextMonthPrice: SUBSCRIPTION_PLANS[targetTier].price,
+              daysRemaining: 0,
+              currentTokens: currentTokenUsage.tokenRequestCount,
+              targetTokens: getTokensForTier(targetTier),
+              nextReset: null
+            });
+          }
+        } catch (error) {
+          ctx.logger.error('Failed to calculate pro-rated price:', error);
+          res.status(500).json({ error: 'Failed to calculate pro-rated price' });
+        }
+      });
+
       app.get('/revenuecat/subscribers/:userId', (req, res, next) => verifyFirebaseToken(req, res, next, ctx), async (req, res) => {
         try {
           // Ensure user can only access their own subscription info
@@ -408,32 +506,74 @@ const revenueCatService: ServiceModule = {
           }
 
           // Handle subscription update
-          const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+          const userDoc = await db.collection('users').doc(userId).get();
+          const userData = userDoc.data();
+          if (!userData) {
+            return res.status(404).json({ error: 'User not found' });
+          }
+
+          // Get current subscription info
+          const currentTokenUsage = userData.tokenUsage || {
+            tokenRequestCount: DEFAULT_FREE_TOKENS,
+            subscriptionTier: SubscriptionTier.FREE,
+            lastReset: now.toISOString(),
+            nextReset: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            subscriptionEndDate: null
+          };
 
           // Determine subscription tier from product ID
           let subscriptionTier: SubscriptionTier;
-          let tokenCount: number;
+          let maxTokenCount: number;
 
           switch (productId) {
             case 'creator_monthly':
               subscriptionTier = SubscriptionTier.CREATOR;
-              tokenCount = DEFAULT_CREATOR_TOKENS;
+              maxTokenCount = DEFAULT_CREATOR_TOKENS;
               break;
             case 'professional_monthly':
               subscriptionTier = SubscriptionTier.PROFESSIONAL;
-              tokenCount = DEFAULT_PROFESSIONAL_TOKENS;
+              maxTokenCount = DEFAULT_PROFESSIONAL_TOKENS;
               break;
             default:
               return res.status(400).json({ error: 'Invalid product ID' });
+          }
+
+          // Calculate pro-rated tokens for upgrade
+          let tokenCount = maxTokenCount;
+          if (currentTokenUsage.subscriptionTier !== SubscriptionTier.FREE &&
+            currentTokenUsage.nextReset &&
+            subscriptionTier > currentTokenUsage.subscriptionTier) {
+
+            const nextReset = new Date(currentTokenUsage.nextReset);
+            const daysRemaining = (nextReset.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+            const daysInMonth = 30;
+            const remainingRatio = daysRemaining / daysInMonth;
+
+            // Calculate value of remaining tokens
+            const currentMaxTokens = getTokensForTier(currentTokenUsage.subscriptionTier);
+            const remainingTokens = currentTokenUsage.tokenRequestCount;
+            const remainingTokenValue = (remainingTokens / currentMaxTokens) * remainingRatio;
+
+            // Apply that value to new subscription tier
+            tokenCount = Math.round(maxTokenCount * remainingTokenValue + maxTokenCount * (1 - remainingRatio));
+
+            ctx.logger.info('Pro-rated upgrade calculation', {
+              daysRemaining,
+              remainingRatio,
+              currentMaxTokens,
+              remainingTokens,
+              remainingTokenValue,
+              finalTokenCount: tokenCount
+            });
           }
 
           // Update user's subscription in Firestore
           const tokenUsage = {
             tokenRequestCount: tokenCount,
             subscriptionTier: subscriptionTier,
-            lastReset: now.toISOString(),
-            nextReset: expiryDate.toISOString(),
-            subscriptionEndDate: expiryDate.toISOString()
+            lastReset: currentTokenUsage.lastReset,
+            nextReset: currentTokenUsage.nextReset || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            subscriptionEndDate: currentTokenUsage.nextReset || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
           };
 
           await db.collection('users').doc(userId).update({
@@ -453,7 +593,7 @@ const revenueCatService: ServiceModule = {
             subscriber: {
               subscriptions: {
                 'mock_sub': {
-                  expires_date: expiryDate.toISOString(),
+                  expires_date: tokenUsage.nextReset,
                   product_identifier: productId
                 }
               }

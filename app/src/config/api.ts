@@ -26,5 +26,6 @@ export const endpoints = {
   subscription: {
     update: (): string => `${API_BASE_URL}/revenuecat/subscriptions/update`,
     status: (userId: string): string => `${API_BASE_URL}/revenuecat/subscribers/${userId}`,
+    prorate: (userId: string, targetTier: string): string => `${API_BASE_URL}/revenuecat/prorate/${userId}?targetTier=${targetTier}`,
   },
 };

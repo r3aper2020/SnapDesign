@@ -24,6 +24,7 @@ interface SubscriptionSheetProps {
     currentTier?: SubscriptionTier;
     onCancelSubscription?: () => void;
     tokensRemaining?: number;
+    onDowngrade?: () => void;
 }
 
 export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
@@ -32,11 +33,41 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     onSuccess,
     currentTier = SubscriptionTier.FREE,
     onCancelSubscription,
+    onDowngrade,
     tokensRemaining = 0,
 }) => {
     const { theme } = useTheme();
     const [selectedTier, setSelectedTier] = useState<SubscriptionTier | null>(null);
     const [isPurchasing, setIsPurchasing] = useState(false);
+    const [prorateInfo, setProrateInfo] = useState<{
+        proratedPrice: number;
+        nextMonthPrice: number;
+        daysRemaining: number;
+    } | null>(null);
+
+    // Fetch pro-rated price when component mounts or tier is selected
+    useEffect(() => {
+        const fetchProrateInfo = async () => {
+            if (currentTier === SubscriptionTier.CREATOR &&
+                (selectedTier === SubscriptionTier.PROFESSIONAL || !selectedTier)) {
+                try {
+                    const info = await subscriptionService.getProratedPrice(SubscriptionTier.PROFESSIONAL);
+                    setProrateInfo({
+                        proratedPrice: info.proratedPrice,
+                        nextMonthPrice: info.nextMonthPrice,
+                        daysRemaining: info.daysRemaining
+                    });
+                } catch (error) {
+                    console.error('Failed to get pro-rated price:', error);
+                    setProrateInfo(null);
+                }
+            } else {
+                setProrateInfo(null);
+            }
+        };
+
+        fetchProrateInfo();
+    }, [selectedTier, currentTier]);
 
     const handlePurchase = async () => {
         if (!selectedTier) return;
@@ -93,8 +124,9 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                                 : 'rgba(255, 255, 255, 0.1)',
                                     },
                                 ]}
-                                onPress={() => setSelectedTier(tier)}
+                                onPress={tier === currentTier ? undefined : () => setSelectedTier(tier)}
                                 disabled={tier === currentTier}
+                                activeOpacity={tier === currentTier ? 1 : 0.8}
                             >
                                 {tier === currentTier && (
                                     <View style={[styles.currentPlanBadge, { backgroundColor: theme.colors.accent.purple }]}>
@@ -105,17 +137,38 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                     {SUBSCRIPTION_PLANS[tier].name}
                                 </Text>
                                 <Text style={[styles.packageTokens, { color: theme.colors.primary.main }]}>
-                                    {SUBSCRIPTION_PLANS[tier].tokensPerMonth} Tokens
+                                    Up to {SUBSCRIPTION_PLANS[tier].tokensPerMonth} Tokens
                                 </Text>
-                                <Text style={[styles.packagePrice, { color: theme.colors.text.primary }]}>
-                                    ${SUBSCRIPTION_PLANS[tier].price}
-                                </Text>
-                                <Text style={[styles.packagePeriod, { color: theme.colors.text.secondary }]}>
-                                    per month
-                                </Text>
+                                {currentTier === SubscriptionTier.CREATOR && tier === SubscriptionTier.PROFESSIONAL && prorateInfo ? (
+                                    // Show pro-rated price for upgrade
+                                    <View>
+                                        <Text style={[styles.packagePrice, { color: theme.colors.text.primary }]}>
+                                            ${prorateInfo.proratedPrice}
+                                        </Text>
+                                        <Text style={[styles.originalPrice, { color: theme.colors.text.secondary, textDecorationLine: 'line-through' }]}>
+                                            ${SUBSCRIPTION_PLANS[tier].price}
+                                        </Text>
+                                        <Text style={[styles.proratedLabel, { color: theme.colors.accent.purple }]}>
+                                            Pro-rated for {prorateInfo.daysRemaining} days
+                                        </Text>
+                                        <Text style={[styles.packagePeriod, { color: theme.colors.text.secondary }]}>
+                                            then ${prorateInfo.nextMonthPrice}/month
+                                        </Text>
+                                    </View>
+                                ) : (
+                                    // Show regular price
+                                    <View>
+                                        <Text style={[styles.packagePrice, { color: theme.colors.text.primary }]}>
+                                            ${SUBSCRIPTION_PLANS[tier].price}
+                                        </Text>
+                                        <Text style={[styles.packagePeriod, { color: theme.colors.text.secondary }]}>
+                                            per month
+                                        </Text>
+                                    </View>
+                                )}
                                 <View style={styles.features}>
                                     <Text style={[styles.feature, { color: theme.colors.text.secondary }]}>
-                                        ✓ {SUBSCRIPTION_PLANS[tier].tokensPerMonth} design tokens monthly
+                                        ✓ Up to {SUBSCRIPTION_PLANS[tier].tokensPerMonth} design tokens monthly
                                     </Text>
                                     <Text style={[styles.feature, { color: theme.colors.text.secondary }]}>
                                         ✓ Token rollover
@@ -135,17 +188,9 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
 
                     {/* Footer */}
                     <View style={styles.footer}>
-                        {currentTier !== SubscriptionTier.FREE && onCancelSubscription ? (
-                            <TouchableOpacity
-                                style={[styles.cancelButton, { borderColor: theme.colors.error.main }]}
-                                onPress={onCancelSubscription}
-                                disabled={isPurchasing}
-                            >
-                                <Text style={[styles.cancelText, { color: theme.colors.error.main }]}>
-                                    Cancel Subscription
-                                </Text>
-                            </TouchableOpacity>
-                        ) : (
+                        {/* Show different buttons based on subscription state */}
+                        {currentTier === SubscriptionTier.FREE ? (
+                            // Free tier - show subscribe button
                             <TouchableOpacity
                                 style={[
                                     styles.subscribeButton,
@@ -167,7 +212,65 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                     )}
                                 </LinearGradient>
                             </TouchableOpacity>
-                        )}
+                        ) : currentTier === SubscriptionTier.CREATOR ? (
+                            // Creator tier - show upgrade button and cancel
+                            <>
+                                {selectedTier === SubscriptionTier.PROFESSIONAL && (
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.subscribeButton,
+                                            { opacity: isPurchasing ? 0.5 : 1 },
+                                        ]}
+                                        onPress={handlePurchase}
+                                        disabled={isPurchasing}
+                                    >
+                                        <LinearGradient
+                                            colors={theme.colors.gradient.primary}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={styles.gradientButton}
+                                        >
+                                            {isPurchasing ? (
+                                                <ActivityIndicator color="#FFFFFF" />
+                                            ) : (
+                                                <Text style={styles.buttonText}>Upgrade Now</Text>
+                                            )}
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                    style={[styles.cancelButton, { borderColor: theme.colors.error.main }]}
+                                    onPress={onCancelSubscription}
+                                    disabled={isPurchasing}
+                                >
+                                    <Text style={[styles.cancelText, { color: theme.colors.error.main }]}>
+                                        Cancel Subscription
+                                    </Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : currentTier === SubscriptionTier.PROFESSIONAL ? (
+                            // Professional tier - show downgrade and cancel
+                            <>
+                                <TouchableOpacity
+                                    style={[styles.downgradeButton, { borderColor: theme.colors.accent.purple }]}
+                                    onPress={onDowngrade}
+                                    disabled={isPurchasing}
+                                >
+                                    <Text style={[styles.downgradeText, { color: theme.colors.accent.purple }]}>
+                                        Downgrade to Creator at Next Reset
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.cancelButton, { borderColor: theme.colors.error.main }]}
+                                    onPress={onCancelSubscription}
+                                    disabled={isPurchasing}
+                                >
+                                    <Text style={[styles.cancelText, { color: theme.colors.error.main }]}>
+                                        Cancel Subscription
+                                    </Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : null}
 
                         <TouchableOpacity
                             style={styles.closeButton}
@@ -175,7 +278,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             disabled={isPurchasing}
                         >
                             <Text style={[styles.closeText, { color: theme.colors.text.primary }]}>
-                                Maybe Later
+                                {currentTier === SubscriptionTier.FREE ? 'Maybe Later' : 'Close'}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -186,6 +289,30 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
 };
 
 const styles = StyleSheet.create({
+    originalPrice: {
+        fontSize: 20,
+        fontWeight: '600',
+        marginBottom: 4,
+        textAlign: 'center',
+    },
+    proratedLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 4,
+        textAlign: 'center',
+    },
+    downgradeButton: {
+        width: '100%',
+        paddingVertical: 16,
+        borderRadius: 16,
+        borderWidth: 2,
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    downgradeText: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
     currentPlanBadge: {
         position: 'absolute',
         top: 12,

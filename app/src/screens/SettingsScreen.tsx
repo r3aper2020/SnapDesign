@@ -150,6 +150,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
     tier: SubscriptionTier;
     isActive: boolean;
+    tokensRemaining: number;
   } | null>(null);
 
   const fetchSubscriptionStatus = useCallback(async () => {
@@ -158,7 +159,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
       const status = await subscriptionService.getStatus();
       setSubscriptionStatus({
         tier: status.tier,
-        isActive: status.isActive
+        isActive: status.isActive,
+        tokensRemaining: status.tokensRemaining
       });
     } catch (error) {
       console.error('Failed to fetch subscription status:', error);
@@ -287,6 +289,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         onClose={() => setShowSubscriptionSheet(false)}
         onSuccess={handleSubscriptionUpdate}
         currentTier={subscriptionStatus?.tier}
+        tokensRemaining={subscriptionStatus?.tokensRemaining}
         onCancelSubscription={async () => {
           try {
             await subscriptionService.cancelSubscription();

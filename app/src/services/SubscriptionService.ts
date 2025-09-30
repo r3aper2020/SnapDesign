@@ -9,6 +9,15 @@ interface SubscriptionStatus {
     isActive: boolean;
 }
 
+interface ProrateInfo {
+    proratedPrice: number;
+    nextMonthPrice: number;
+    daysRemaining: number;
+    currentTokens: number;
+    targetTokens: number;
+    nextReset: string | null;
+}
+
 interface RevenueCatSubscriber {
     subscriber: {
         subscriptions: {
@@ -121,6 +130,23 @@ class SubscriptionService {
             await this.updateSubscription('cancel');
         } catch (error) {
             console.error('Failed to cancel subscription:', error);
+            throw error;
+        }
+    }
+
+    public async getProratedPrice(targetTier: SubscriptionTier): Promise<ProrateInfo> {
+        try {
+            if (!this.userId) {
+                throw new Error('User ID not set');
+            }
+
+            const response = await apiService.get<ProrateInfo>(
+                endpoints.subscription.prorate(this.userId, targetTier)
+            );
+
+            return response;
+        } catch (error) {
+            console.error('Failed to get pro-rated price:', error);
             throw error;
         }
     }
