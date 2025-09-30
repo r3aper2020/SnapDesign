@@ -51,16 +51,18 @@ class SubscriptionService {
 
             // Get token usage from auth/me endpoint
             const authResponse = await apiService.get<{
-                tokenUsage: {
-                    tokenRequestCount: number;
-                    nextReset: string | null;
+                tokens: {
+                    remaining: number;
+                    lastReset: string;
+                    nextReset: string;
+                    subscriptionTier: SubscriptionTier;
                 };
             }>(endpoints.auth.me());
 
             return {
                 tier: response.tier,
-                tokensRemaining: authResponse.tokenUsage.tokenRequestCount,
-                nextReset: authResponse.tokenUsage.nextReset,
+                tokensRemaining: authResponse.tokens.remaining,
+                nextReset: authResponse.tokens.nextReset,
                 isActive: response.active
             };
         } catch (error) {

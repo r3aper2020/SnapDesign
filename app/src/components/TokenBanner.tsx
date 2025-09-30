@@ -56,7 +56,9 @@ export const TokenBanner: React.FC<TokenBannerProps> = ({
     const textColor = isOutOfTokens ? '#FF453A' : theme.colors.text.primary;
 
     const message = isOutOfTokens
-        ? 'Out of tokens. Subscribe to continue.'
+        ? userSubscribed
+            ? 'Out of tokens. Wait for next reset.'
+            : 'Out of tokens. Subscribe to continue.'
         : `${tokensRemaining} design tokens remaining`;
 
     // Reset visibility when shouldShow changes
@@ -100,13 +102,12 @@ export const TokenBanner: React.FC<TokenBannerProps> = ({
 
     // Handle modal visibility based on token status
     useEffect(() => {
-        if (isOutOfTokens && isVisible && shouldShow) {
+        if (isOutOfTokens && !userSubscribed && isVisible && shouldShow) {
             setIsModalVisible(true);
             setIsVisible(false);
         }
-    }, [isOutOfTokens, isVisible, shouldShow]);
+    }, [isOutOfTokens, userSubscribed, isVisible, shouldShow]);
 
-    if (userSubscribed) return null;
     if (tokensRemaining === null) return null;
     if (!isVisible && !isModalVisible) return null;
 

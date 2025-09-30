@@ -307,24 +307,40 @@ const revenueCatService: ServiceModule = {
             return res.status(403).json({ error: 'Unauthorized access' });
           }
 
-          // Return mock subscriber data for testing
+          // Initialize Firebase Admin if not already initialized
+          if (!admin.apps.length) {
+            initializeFirebaseAdmin(ctx);
+          }
+
+          // Get actual user data from Firestore
+          const db = admin.firestore();
+          const userDoc = await db.collection('users').doc(req.params.userId).get();
+          const userData = userDoc.data();
+
+          if (!userData) {
+            return res.status(404).json({ error: 'User not found' });
+          }
+
+          const tokenUsage = userData.tokenUsage || {
+            tokenRequestCount: DEFAULT_FREE_TOKENS,
+            subscriptionTier: SubscriptionTier.FREE,
+            lastReset: new Date().toISOString(),
+            nextReset: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          };
+
+          // Return actual user subscription data
           res.json({
             subscriber: {
-              subscriptions: {
+              subscriptions: tokenUsage.subscriptionTier === SubscriptionTier.FREE ? {} : {
                 'mock_sub': {
-                  expires_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                  product_identifier: 'creator_monthly'
+                  expires_date: tokenUsage.nextReset || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                  product_identifier: `${tokenUsage.subscriptionTier}_monthly`
                 }
               }
             },
-            tier: 'creator',
-            active: true,
-            tokenUsage: {
-              tokenRequestCount: DEFAULT_CREATOR_TOKENS,
-              subscriptionTier: SubscriptionTier.CREATOR,
-              lastReset: new Date().toISOString(),
-              nextReset: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            }
+            tier: tokenUsage.subscriptionTier,
+            active: tokenUsage.subscriptionTier !== SubscriptionTier.FREE,
+            tokenUsage
           });
         } catch (error) {
           ctx.logger.error('Failed to get subscriber info in stub mode:', error);
@@ -394,10 +410,27 @@ const revenueCatService: ServiceModule = {
           // Handle subscription update
           const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
+          // Determine subscription tier from product ID
+          let subscriptionTier: SubscriptionTier;
+          let tokenCount: number;
+
+          switch (productId) {
+            case 'creator_monthly':
+              subscriptionTier = SubscriptionTier.CREATOR;
+              tokenCount = DEFAULT_CREATOR_TOKENS;
+              break;
+            case 'professional_monthly':
+              subscriptionTier = SubscriptionTier.PROFESSIONAL;
+              tokenCount = DEFAULT_PROFESSIONAL_TOKENS;
+              break;
+            default:
+              return res.status(400).json({ error: 'Invalid product ID' });
+          }
+
           // Update user's subscription in Firestore
           const tokenUsage = {
-            tokenRequestCount: DEFAULT_CREATOR_TOKENS,
-            subscriptionTier: SubscriptionTier.CREATOR,
+            tokenRequestCount: tokenCount,
+            subscriptionTier: subscriptionTier,
             lastReset: now.toISOString(),
             nextReset: expiryDate.toISOString(),
             subscriptionEndDate: expiryDate.toISOString()
@@ -416,12 +449,12 @@ const revenueCatService: ServiceModule = {
           // Return mock subscription update response
           res.json({
             success: true,
-            tier: 'creator',
+            tier: subscriptionTier,
             subscriber: {
               subscriptions: {
                 'mock_sub': {
                   expires_date: expiryDate.toISOString(),
-                  product_identifier: 'creator_monthly'
+                  product_identifier: productId
                 }
               }
             },
