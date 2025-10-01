@@ -9,3 +9,4 @@ export * from './icons/DesignIcons';
 export { TokenBanner } from './TokenBanner';
 export { SubscriptionModal } from './SubscriptionModal';
 export { SubscriptionSheet } from './SubscriptionSheet';
+export { AuthModal } from './AuthModal';

@@ -56,7 +56,11 @@ export type RootStackParamList = {
   SavedDesigns: undefined;
   Settings: undefined;
   Login: undefined;
-  Signup: undefined;
+  Signup: {
+    prefillEmail?: string;
+    prefillPassword?: string;
+    notice?: string;
+  } | undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();

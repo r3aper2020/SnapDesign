@@ -19,6 +19,7 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { TokenBanner, SubscriptionSheet } from '../components';
 import { apiService } from '../services';
 import { endpoints } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -310,6 +311,7 @@ const serviceOptions = [
 // ============================================================================
 export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ navigation }) => {
   const { theme } = useTheme();
+  const { isAuthenticated } = useAuth();
 
   // State for token usage and subscription modal
   const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
@@ -347,6 +349,12 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
 
   const fetchTokenUsage = async () => {
     try {
+      if (!isAuthenticated) {
+        // Guests: don't fetch auth-protected endpoint
+        setTokensRemaining(null);
+        setUserSubscribed(null);
+        return;
+      }
       interface AuthMeResponse {
         tokens: {
           remaining: number;
@@ -359,7 +367,7 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
         setUserSubscribed(response.tokens.subscribed);
       }
     } catch (error) {
-      console.error('Failed to fetch token usage:', error);
+      console.warn('Failed to fetch token usage:', error);
     }
   };
 
@@ -368,19 +376,12 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
     React.useCallback(() => {
       setShowBanner(true);
       fetchTokenUsage();
-    }, [])
+    }, [isAuthenticated])
   );
 
   const handleServiceSelect = (serviceId: string) => {
     console.log('Service selected:', serviceId);
-
-    // Check if user has tokens or is subscribed
-    if (!userSubscribed && (tokensRemaining === 0 || tokensRemaining === null)) {
-      setPendingServiceId(serviceId);
-      setIsSubscriptionModalVisible(true);
-      return;
-    }
-
+    // Do not gate here; gating happens at Generate button
     navigateToService(serviceId);
   };
 
@@ -498,12 +499,14 @@ export const ServiceSelectionScreen: React.FC<ServiceSelectionProps> = ({ naviga
 
       <View style={styles.content}>
         {/* Token Banner */}
-        <TokenBanner
-          tokensRemaining={tokensRemaining}
-          userSubscribed={userSubscribed}
-          shouldShow={showBanner}
-          onSubscribe={() => setIsSubscriptionModalVisible(true)}
-        />
+        {isAuthenticated && (
+          <TokenBanner
+            tokensRemaining={tokensRemaining}
+            userSubscribed={userSubscribed}
+            shouldShow={showBanner}
+            onSubscribe={() => setIsSubscriptionModalVisible(true)}
+          />
+        )}
 
         {/* Subscription Sheet */}
         <SubscriptionSheet

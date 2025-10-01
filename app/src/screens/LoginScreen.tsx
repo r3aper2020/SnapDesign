@@ -39,6 +39,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       // Navigate back to main app
       navigation.goBack();
     } else {
+      const errorMessage = result.error || '';
+      const normalized = errorMessage.toUpperCase();
+      const userNotFound =
+        normalized.includes('EMAIL_NOT_FOUND') ||
+        normalized.includes('USER_NOT_FOUND') ||
+        normalized.includes('INVALID_LOGIN_CREDENTIALS');
+
+      if (userNotFound) {
+        navigation.navigate('Signup', {
+          prefillEmail: email.trim(),
+          prefillPassword: password,
+          notice: "We couldn't find an account for that email. Please sign up.",
+        });
+        return;
+      }
+
       Alert.alert('Login Failed', result.error || 'Please try again');
     }
   };
