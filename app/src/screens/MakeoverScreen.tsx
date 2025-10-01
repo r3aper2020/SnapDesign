@@ -30,8 +30,10 @@ import {
   InspirationModal,
   ErrorDisplay,
   SparkleIcon,
+  AuthModal,
 } from '../components';
 import { useDesignForm } from '../hooks/useDesignForm';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -63,6 +65,7 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
   const { theme } = useTheme();
   const [isInspirationModalVisible, setIsInspirationModalVisible] = useState(false);
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+  const [isAuthModalVisible, setIsAuthModalVisible] = useState(false);
   
   // Local state for image (more reliable than hook state)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
@@ -70,6 +73,7 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
   
   // Custom hooks
   const formState = useDesignForm();
+  const { isAuthenticated } = useAuth();
   
   // Get screen dimensions
   const { width, height } = Dimensions.get('window');
@@ -175,6 +179,11 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
   }, [formState]);
 
   const handleGenerateMakeover = useCallback(async () => {
+    // Require auth right before calling the API
+    if (!isAuthenticated) {
+      setIsAuthModalVisible(true);
+      return;
+    }
     // Validate that we have both image and description
     if (!formState.selectedImageUri && !localImageUri) {
       formState.setError('Please select an image first');
@@ -363,7 +372,7 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
     } finally {
       formState.setIsGenerating(false);
     }
-  }, [formState, navigation, localImageUri, fadeAnim, loadingFadeAnim]);
+  }, [formState, navigation, localImageUri, fadeAnim, loadingFadeAnim, isAuthenticated]);
 
   // ============================================================================
   // RENDER FUNCTIONS
@@ -803,6 +812,20 @@ export const MakeoverScreen: React.FC<MakeoverScreenProps> = ({ navigation }) =>
 
       {/* Image Modal */}
       {renderImageModal()}
+
+      {/* Auth Modal */}
+      <AuthModal
+        visible={isAuthModalVisible}
+        onClose={() => setIsAuthModalVisible(false)}
+        onSignIn={() => {
+          setIsAuthModalVisible(false);
+          navigation.navigate('Login');
+        }}
+        onSignUp={() => {
+          setIsAuthModalVisible(false);
+          navigation.navigate('Signup');
+        }}
+      />
 
       {/* Bottom Navigation - Hide during generation */}
       {!formState.isGenerating && (

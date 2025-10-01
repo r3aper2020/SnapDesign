@@ -138,9 +138,7 @@ export const BottomTabNavigator: React.FC = () => {
         }}
       >
         {({ navigation }) => (
-          <AuthRequiredScreen navigation={navigation}>
-            <ServiceSelectionScreen navigation={navigation} />
-          </AuthRequiredScreen>
+          <ServiceSelectionScreen navigation={navigation} />
         )}
       </Tab.Screen>
       <Tab.Screen
@@ -150,9 +148,7 @@ export const BottomTabNavigator: React.FC = () => {
         }}
       >
         {({ navigation }) => (
-          <AuthRequiredScreen navigation={navigation}>
-            <SavedDesignsScreen navigation={navigation} />
-          </AuthRequiredScreen>
+          <SavedDesignsScreen navigation={navigation} />
         )}
       </Tab.Screen>
       <Tab.Screen

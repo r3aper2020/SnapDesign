@@ -89,8 +89,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      setIsLoading(true);
-
       const response = await apiService.post<{
         uid: string;
         email: string;
@@ -120,20 +118,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(userData);
       return { success: true };
     } catch (error) {
-      console.error('Login error:', error);
+      console.warn('Login error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Login failed. Please try again.'
       };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const signup = async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      setIsLoading(true);
-
       const response = await apiService.post<{
         uid: string;
         email: string;
@@ -167,13 +161,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(userData);
       return { success: true };
     } catch (error) {
-      console.error('Signup error:', error);
+      console.warn('Signup error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Signup failed. Please try again.'
       };
-    } finally {
-      setIsLoading(false);
     }
   };
 

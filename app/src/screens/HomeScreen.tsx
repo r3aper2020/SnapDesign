@@ -258,25 +258,47 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 }
               ]}
             >
-              <TouchableOpacity
-                style={[styles.authButton, { backgroundColor: theme.colors.button.primary }]}
-                onPress={() => navigation.navigate('Signup')}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.authButtonText, { color: theme.colors.primary.contrast }]}>
-                  Sign Up
-                </Text>
-              </TouchableOpacity>
+              {/* Start Generating CTA above auth buttons */}
+              <Animated.View style={{ width: '100%', alignItems: 'center', marginTop: 1, marginBottom: 1, transform: [{ scale: pulseAnim }] }}>
+                <TouchableOpacity
+                  style={styles.heroCTA}
+                  onPress={handleStartDesign}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={theme.colors.gradient.primary}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.heroCTAGradient, { width: width - 80 }]}
+                  >
+                    <CameraIcon size={24} color="#FFFFFF" />
+                    <Text style={styles.heroCTAText}>Start Generating</Text>
+                    <SparkleIcon size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
 
-              <TouchableOpacity
-                style={[styles.authButton, styles.authButtonSecondary, { borderColor: theme.colors.button.secondary }]}
-                onPress={() => navigation.navigate('Login')}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.authButtonText, { color: theme.colors.button.secondary }]}>
-                  Sign In
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.authButtonsRow}>
+                <TouchableOpacity
+                  style={[styles.authButton, { backgroundColor: theme.colors.button.primary }]}
+                  onPress={() => navigation.navigate('Signup')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.authButtonText, { color: theme.colors.primary.contrast }]}>
+                    Sign Up
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.authButton, styles.authButtonSecondary, { borderColor: theme.colors.button.secondary }]}
+                  onPress={() => navigation.navigate('Login')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.authButtonText, { color: theme.colors.button.secondary }]}>
+                    Sign In
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </Animated.View>
           )}
         </Animated.View>
@@ -533,9 +555,13 @@ const styles = StyleSheet.create({
 
   // Auth Section
   authSection: {
+    flexDirection: 'column',
+    gap: 1,
+    marginBottom: 22,
+  },
+  authButtonsRow: {
     flexDirection: 'row',
     gap: 16,
-    marginBottom: 32,
   },
   authButton: {
     flex: 1,

@@ -30,8 +30,10 @@ import { DecorateResponse } from '../types/api';
 import {
   ErrorDisplay,
   TokenBanner,
+  AuthModal,
 } from '../components';
 import { useDesignForm } from '../hooks/useDesignForm';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -53,6 +55,7 @@ export const DeclutterScreen = ({ navigation }: DeclutterScreenProps) => {
   // ============================================================================
   const { theme } = useTheme();
   const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+  const [isAuthModalVisible, setIsAuthModalVisible] = useState(false);
   const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
   const [userSubscribed, setUserSubscribed] = useState<boolean | null>(null);
 
@@ -63,6 +66,7 @@ export const DeclutterScreen = ({ navigation }: DeclutterScreenProps) => {
 
   // Custom hooks
   const formState = useDesignForm();
+  const { isAuthenticated } = useAuth();
 
   // Get screen dimensions
   const { width, height } = Dimensions.get('window');
@@ -156,6 +160,11 @@ export const DeclutterScreen = ({ navigation }: DeclutterScreenProps) => {
   }, [formState]);
 
   const handleGenerateDeclutterPlan = useCallback(async function handleGenerateDeclutterPlan(): Promise<void> {
+    // Require auth right before calling the API
+    if (!isAuthenticated) {
+      setIsAuthModalVisible(true);
+      return;
+    }
     // Validate that we have an image
     if (!formState.selectedImageUri && !localImageUri) {
       formState.setError('Please select an image first');
@@ -343,7 +352,7 @@ export const DeclutterScreen = ({ navigation }: DeclutterScreenProps) => {
       setIsGenerating(false); // Reset local state
       formState.setIsGenerating(false);
     }
-  }, [formState, navigation, localImageUri, fadeAnim, loadingFadeAnim, progressAnim, pulseAnim, theme]);
+  }, [formState, navigation, localImageUri, fadeAnim, loadingFadeAnim, progressAnim, pulseAnim, theme, isAuthenticated]);
 
   // ============================================================================
   // RENDER FUNCTIONS
@@ -745,6 +754,20 @@ export const DeclutterScreen = ({ navigation }: DeclutterScreenProps) => {
 
       {/* Image Modal */}
       {renderImageModal()}
+
+      {/* Auth Modal */}
+      <AuthModal
+        visible={isAuthModalVisible}
+        onClose={() => setIsAuthModalVisible(false)}
+        onSignIn={() => {
+          setIsAuthModalVisible(false);
+          navigation.navigate('Login');
+        }}
+        onSignUp={() => {
+          setIsAuthModalVisible(false);
+          navigation.navigate('Signup');
+        }}
+      />
 
       {/* Bottom Navigation - Hide during generation */}
       {!isGenerating && (
