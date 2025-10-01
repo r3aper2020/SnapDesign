@@ -34,8 +34,12 @@ const config: ExpoConfig = {
     favicon: './assets/re-vibe.png',
   },
   extra: {
-    apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:4000',
-    apiKey: process.env.API_KEY,
+    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || 'http://localhost:4000',
+    apiKey:
+      process.env.EXPO_PUBLIC_API_KEY ||
+      process.env.API_KEY ||
+      process.env.EXPO_PUBLIC_SERVER_API_KEY ||
+      process.env.SERVER_API_KEY,
   },
 };
 

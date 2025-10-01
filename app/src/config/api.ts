@@ -2,8 +2,34 @@ import Constants from 'expo-constants';
 
 const extra = (Constants.expoConfig?.extra || {}) as Record<string, unknown>;
 
-export const API_BASE_URL: string = typeof extra.apiBaseUrl === 'string' ? extra.apiBaseUrl : 'http://localhost:4000';
-export const API_KEY: string | undefined = typeof extra.apiKey === 'string' ? extra.apiKey : undefined;
+const resolveFromExtra = <T>(key: string): T | undefined => {
+  const value = extra[key];
+  return typeof value === 'string' ? (value as T) : undefined;
+};
+
+const resolveFromEnv = (...keys: string[]): string | undefined => {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+export const API_BASE_URL: string =
+  resolveFromExtra<string>('apiBaseUrl') ||
+  resolveFromEnv('EXPO_PUBLIC_API_BASE_URL', 'API_BASE_URL') ||
+  'http://localhost:4000';
+
+export const API_KEY: string | undefined =
+  resolveFromExtra<string>('apiKey') ||
+  resolveFromEnv(
+    'EXPO_PUBLIC_API_KEY',
+    'EXPO_PUBLIC_SERVER_API_KEY',
+    'SERVER_API_KEY',
+    'API_KEY'
+  );
 
 export const endpoints = {
   health: (): string => `${API_BASE_URL}/design/health`,
