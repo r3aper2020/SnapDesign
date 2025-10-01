@@ -1,5 +1,5 @@
 import { tokenStorage } from './TokenStorage';
-import { endpoints } from '../config/api';
+import { API_KEY, endpoints } from '../config/api';
 
 interface RequestOptions extends RequestInit {
     skipAuth?: boolean;
@@ -104,6 +104,13 @@ class ApiService {
             'Content-Type': 'application/json',
             ...fetchOptions.headers,
         };
+
+        if (API_KEY) {
+            fetchOptions.headers = {
+                ...fetchOptions.headers,
+                'x-api-key': API_KEY,
+            };
+        }
 
         try {
             const response = await fetch(url, fetchOptions);

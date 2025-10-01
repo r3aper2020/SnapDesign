@@ -12,7 +12,30 @@ This guide covers deploying both the API server and mobile app to production.
 
 ## API Server Deployment
 
-### 1. Prepare Production Server
+### 1. Prepare GCP Compute Instance
+
+```bash
+# Create VM (example using gcloud beta compute)
+gcloud compute instances create snapdesign-api \
+  --project YOUR_PROJECT_ID \
+  --zone us-central1-a \
+  --machine-type e2-medium \
+  --boot-disk-size 50GB \
+  --tags http-server,https-server
+
+# (Optional) Reserve static IP
+gcloud compute addresses create snapdesign-api-ip --region us-central1
+
+# Open firewall for HTTP/HTTPS
+gcloud compute firewall-rules create snapdesign-allow-http \
+  --allow tcp:80,tcp:443 \
+  --target-tags http-server
+
+# SSH into instance
+gcloud compute ssh snapdesign-api --zone us-central1-a
+```
+
+Once connected to the instance, install the runtime dependencies:
 
 ```bash
 # Update system
@@ -53,12 +76,34 @@ nano .env
 
 ```env
 # Production Environment
+# Core runtime
 NODE_ENV=production
+# Networking
+PORT=4000
+ENABLE_HTTP=true
+ENABLE_HTTPS=true
+HTTPS_PORT=3443
+TLS_CERT_PATH=/var/www/snapdesign-api/certs/dev-cert.pem
+TLS_KEY_PATH=/var/www/snapdesign-api/certs/dev-key.pem
+# Optional: TLS passphrase and CA bundle
+# TLS_PASSPHRASE=your_passphrase
+# TLS_CA_PATHS=/var/www/snapdesign-api/certs/ca.pem
+
+# API security
+SERVER_API_KEY=replace-with-uuid
+API_KEY_HEADER=x-api-key
+
+# Integrations
 GEMINI_API_KEY=your_production_key
 GEMINI_MODEL=gemini-2.5-flash-image-preview
 AMAZON_PARTNER_TAG=your_affiliate_tag
 AMAZON_HOST=amazon.com
-PORT=4000
+```
+
+**Tip:** Generate a UUID for `SERVER_API_KEY`:
+
+```bash
+uuidgen
 ```
 
 ### 4. Start with PM2
@@ -95,7 +140,23 @@ pm2 save
 pm2 startup
 ```
 
-### 5. Configure Nginx (Optional but Recommended)
+### 5. Configure HTTPS (Optional but Recommended)
+
+If you need a quick self-signed certificate for testing, create one locally (not for production use):
+
+```bash
+mkdir -p certs
+openssl req -x509 -newkey rsa:4096 -nodes -keyout certs/dev-key.pem -out certs/dev-cert.pem \
+  -sha256 -days 365 \
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
+
+Copy the resulting files to your server and update `TLS_CERT_PATH`/`TLS_KEY_PATH`.
+
+For production, use a managed certificate (e.g., Cloud Load Balancer or Let's Encrypt via Nginx/Certbot). The existing Nginx reverse proxy instructions still apply if you prefer terminating TLS at Nginx.
+
+### 6. Configure Nginx (Optional but Recommended)
 
 ```bash
 # Install Nginx
@@ -136,7 +197,7 @@ sudo ufw allow 22
 sudo ufw enable
 ```
 
-### 6. SSL with Let's Encrypt
+### 7. SSL with Let's Encrypt
 
 ```bash
 # Install Certbot
